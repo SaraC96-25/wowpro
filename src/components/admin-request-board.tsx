@@ -1,7 +1,7 @@
 'use client';
 
-import {CheckCircle2, Clock3, MessageSquareText, Search, TriangleAlert} from 'lucide-react';
-import {useState} from 'react';
+import {CheckCircle2, Clock3, MessageSquareText, Plus, Search, TriangleAlert, X} from 'lucide-react';
+import {FormEvent, useState} from 'react';
 
 export type AdminGraphicRequest = {
   id: string;
@@ -18,14 +18,17 @@ export type AdminGraphicRequest = {
 
 type RequestStatus = 'new' | 'in_progress' | 'completed' | 'rejected';
 
+export type RequestClientOption = {recordId: string; companyName: string};
+
 const statusLabels: Record<RequestStatus, string> = {new: 'Nuova', in_progress: 'In lavorazione', completed: 'Completata', rejected: 'Rifiutata'};
 const typeLabels: Record<AdminGraphicRequest['type'], string> = {revision: 'Revisione', modification: 'Modifica', creation: 'Creazione'};
 
-export function AdminRequestBoard({initialRequests}: {initialRequests: AdminGraphicRequest[]}) {
+export function AdminRequestBoard({clients, initialRequests}: {clients: RequestClientOption[]; initialRequests: AdminGraphicRequest[]}) {
   const [requests, setRequests] = useState(initialRequests);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | RequestStatus>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase('it-IT');
   const visibleRequests = requests.filter((request) => {
@@ -59,6 +62,7 @@ export function AdminRequestBoard({initialRequests}: {initialRequests: AdminGrap
 
     <section className="request-toolbar">
       <div><span className="eyebrow">OPERATIVITÀ</span><h2>Richieste grafiche</h2><p>Gestisci le richieste e aggiorna lo stato di lavorazione.</p></div>
+      <button className="button button--primary" onClick={() => setIsCreating(true)} type="button"><Plus size={17} />Nuova richiesta</button>
     </section>
     {error ? <p className="directory-error">{error}</p> : null}
 
@@ -76,7 +80,50 @@ export function AdminRequestBoard({initialRequests}: {initialRequests: AdminGrap
       {visibleRequests.map((request) => <RequestRow isUpdating={updatingId === request.id} key={request.id} onStatusChange={(status) => updateStatus(request.id, status)} request={request} />)}
       {!visibleRequests.length ? <div className="request-board__empty"><MessageSquareText size={22} /><strong>Nessuna richiesta trovata</strong><p>{requests.length ? 'Modifica i filtri o la ricerca per vedere altre richieste.' : 'Le richieste inviate dai clienti compariranno qui.'}</p></div> : null}
     </section>
+    {isCreating ? <CreateRequestModal clients={clients} onClose={() => setIsCreating(false)} onCreated={(request) => { setRequests((current) => [request, ...current]); setIsCreating(false); }} /> : null}
   </>;
+}
+
+function CreateRequestModal({clients, onClose, onCreated}: {clients: RequestClientOption[]; onClose: () => void; onCreated: (request: AdminGraphicRequest) => void}) {
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function createRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true); setError('');
+    const form = new FormData(event.currentTarget);
+    const client = clients.find((item) => item.recordId === form.get('clientId'));
+    if (!client) { setError('Seleziona un cliente.'); setIsSaving(false); return; }
+    const payload = {
+      airtableRecordId: client.recordId,
+      companyName: client.companyName,
+      title: String(form.get('title') || ''),
+      brief: String(form.get('brief') || ''),
+      type: String(form.get('type') || ''),
+      creditCost: String(form.get('creditCost') || ''),
+    };
+    try {
+      const response = await fetch('/api/admin/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+      const result = await readApiResponse(response);
+      if (!response.ok || !result.request || !isGraphicRequest(result.request)) throw new Error(result.error || 'Creazione non riuscita.');
+      onCreated(result.request);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creazione non riuscita.');
+    } finally { setIsSaving(false); }
+  }
+
+  return <div aria-modal="true" className="modal-backdrop" role="dialog"><section className="client-modal"><header><div><h2>Nuova richiesta</h2><p>Inserimento manuale dello staff</p></div><button aria-label="Chiudi" className="modal-close" onClick={onClose} type="button"><X size={19} /></button></header>
+    <form className="client-form" onSubmit={createRequest}>
+      <label className="client-form__wide">Cliente<select defaultValue="" name="clientId" required><option disabled value="">Seleziona un cliente</option>{clients.map((client) => <option key={client.recordId} value={client.recordId}>{client.companyName}</option>)}</select></label>
+      <label>Tipo richiesta<select defaultValue="modification" name="type"><option value="revision">Revisione</option><option value="modification">Modifica</option><option value="creation">Creazione</option></select></label>
+      <label>Costo crediti<input min="1" name="creditCost" placeholder="es. 2000" required type="number" /></label>
+      <label className="client-form__wide">Titolo<input name="title" placeholder="es. Aggiornamento listino A4" required /></label>
+      <label className="client-form__wide">Brief<textarea name="brief" placeholder="Descrivi il lavoro richiesto, i materiali disponibili e le indicazioni importanti..." required rows={5} /></label>
+      {error ? <p className="form-error">{error}</p> : null}
+      <p className="form-hint">La richiesta verrà creata come nuova e tracciata nello storico interno.</p>
+      <footer className="modal-actions"><button className="client-action" disabled={isSaving} onClick={onClose} type="button">Annulla</button><button className="client-action client-action--primary" disabled={isSaving} type="submit"><Plus size={16} />{isSaving ? 'Creazione...' : 'Crea richiesta'}</button></footer>
+    </form>
+  </section></div>;
 }
 
 function RequestRow({isUpdating, onStatusChange, request}: {isUpdating: boolean; onStatusChange: (status: RequestStatus) => void; request: AdminGraphicRequest}) {
@@ -104,4 +151,8 @@ async function readApiResponse(response: Response) {
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) return await response.json() as {error?: string; request?: {status: RequestStatus}};
   return {error: response.ok ? 'Risposta non valida dal server.' : 'Il servizio non è disponibile. Riprova tra qualche istante.'};
+}
+
+function isGraphicRequest(value: unknown): value is AdminGraphicRequest {
+  return value !== null && typeof value === 'object' && 'id' in value && 'publicId' in value;
 }

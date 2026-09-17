@@ -38,14 +38,21 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
 
 async function RequestsPage() {
   let requests: AdminGraphicRequest[] = [];
+  let clients: {recordId: string; companyName: string}[] = [];
   let hasLoadError = false;
   try {
     const admin = createAdminClient();
-    const {data, error} = await admin
+    const [{data, error}, airtableClients] = await Promise.all([
+      admin
       .from('graphic_requests')
       .select('id,public_id,title,brief,type,status,credit_cost,created_at,companies(name),requester:requested_by(full_name,email)')
-      .order('created_at', {ascending: false});
+      .order('created_at', {ascending: false}),
+      listWowproClients(),
+    ]);
     if (error) throw error;
+    clients = airtableClients
+      .filter(({fields}) => !fields.archiviato)
+      .map(({id, fields}) => ({recordId: id, companyName: fields.ragione_sociale || fields.cliente_id || 'Cliente WOWPRO'}));
     requests = (data || []).map((graphicRequest) => {
       const company = asRecord(graphicRequest.companies);
       const requester = asRecord(graphicRequest.requester);
@@ -70,7 +77,7 @@ async function RequestsPage() {
   return <>
     <PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Richieste" />
     <main className="page-content">
-      {hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare le richieste</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminRequestBoard initialRequests={requests} />}
+      {hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare le richieste</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminRequestBoard clients={clients} initialRequests={requests} />}
     </main>
   </>;
 }
