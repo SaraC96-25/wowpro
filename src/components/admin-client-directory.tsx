@@ -90,8 +90,8 @@ function EditClientModal({client, onClose, onSaved}: {client: AdminClient; onClo
     };
     try {
       const response = await fetch(`/api/admin/clients/${client.recordId}`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Salvataggio non riuscito.');
+      const result = await readApiResponse(response);
+      if (!response.ok || !result.fields) throw new Error(result.error || 'Salvataggio non riuscito.');
       onSaved({companyName: result.fields.ragione_sociale || '', email: result.fields.email_login || '', plan: result.fields.piano || '', subscriptionStatus: result.fields.stato_abbonamento || '', accountManager: result.fields.account_manager_nome || '', shopifyCustomerId: result.fields.shopify_customer_id || ''});
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Salvataggio non riuscito.');
@@ -124,8 +124,8 @@ function CreditModal({client, onClose, onSaved}: {client: AdminClient; onClose: 
     const payload = {bucket, amount: String(form.get('amount') || ''), reason: String(form.get('reason') || '')};
     try {
       const response = await fetch(`/api/admin/clients/${client.recordId}/credits`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Accredito non riuscito.');
+      const result = await readApiResponse(response);
+      if (!response.ok || !result.fields) throw new Error(result.error || 'Accredito non riuscito.');
       onSaved({includedCredits: Number(result.fields.crediti_inclusi_residui || 0), extraCredits: Number(result.fields.crediti_extra_residui || 0)});
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Accredito non riuscito.');
@@ -158,5 +158,25 @@ function statusTone(status: string) {
   if (value === 'sospeso') return 'paused';
   return 'cancelled';
 }
+
+async function readApiResponse(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) return await response.json() as ClientMutationResponse;
+  return {error: response.ok ? 'Risposta non valida dal server.' : 'Il servizio non è disponibile. Riprova tra qualche istante.'};
+}
+
+type ClientMutationResponse = {
+  error?: string;
+  fields?: {
+    ragione_sociale?: string;
+    email_login?: string;
+    piano?: string;
+    stato_abbonamento?: string;
+    account_manager_nome?: string;
+    shopify_customer_id?: string;
+    crediti_inclusi_residui?: number;
+    crediti_extra_residui?: number;
+  };
+};
 
 function formatNumber(value: number) { return new Intl.NumberFormat('it-IT').format(value); }

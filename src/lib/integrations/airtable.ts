@@ -58,7 +58,7 @@ export async function getWowproClient(recordId: string) {
   const {token, baseId, table} = getAirtableConfig();
   const response = await fetch(
     `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`,
-    {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store'},
+    {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal: AbortSignal.timeout(10_000)},
   );
   if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);
   return await response.json() as AirtableRecord<AirtableWowproClient>;
@@ -76,6 +76,7 @@ export async function updateWowproClient(recordId: string, fields: Partial<Airta
       },
       body: JSON.stringify({fields}),
       cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
     },
   );
   if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);

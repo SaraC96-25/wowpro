@@ -60,7 +60,8 @@ export async function POST(request: Request, {params}: {params: Promise<{recordI
     }
 
     return NextResponse.json({fields: updated.fields});
-  } catch {
+  } catch (error) {
+    console.error('[Credit adjustment]', error);
     return NextResponse.json({error: 'Impossibile accreditare i crediti.'}, {status: 502});
   }
 }

@@ -27,7 +27,8 @@ export async function PATCH(request: Request, {params}: {params: Promise<{record
     const {recordId} = await params;
     const record = await updateWowproClient(recordId, parsed.data);
     return NextResponse.json({fields: record.fields});
-  } catch {
+  } catch (error) {
+    console.error('[Client update]', error);
     return NextResponse.json({error: 'Impossibile aggiornare il cliente.'}, {status: 502});
   }
 }
