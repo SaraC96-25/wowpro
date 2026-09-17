@@ -33,7 +33,7 @@ export function AdminCreditLedger({entries}: {entries: CreditLedgerEntry[]}) {
   return (
     <>
       <section className="credit-overview" aria-label="Riepilogo crediti">
-        <CreditMetric icon={<BadgeEuro />} label="Crediti accreditati" note="nel mese corrente" value={formatNumber(monthlyTotal)} />
+        <CreditMetric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" value={formatNumber(monthlyTotal)} />
         <CreditMetric icon={<Sparkles />} label="Crediti extra" note="non soggetti a scadenza" tone="violet" value={formatNumber(extraTotal)} />
         <CreditMetric icon={<UsersRound />} label="Clienti movimentati" note="nel mese corrente" tone="blue" value={String(activeCompanies)} />
         <CreditMetric icon={<CalendarDays />} label="Movimenti registrati" note="dall'avvio del portale" tone="amber" value={String(entries.length)} />

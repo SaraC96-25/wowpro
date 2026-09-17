@@ -31,7 +31,7 @@ export default async function AdminPage() {
       <section className="metric-grid">
         <Metric icon={<UsersRound />} label="Clienti attivi" note={`su ${clients.filter(({fields}) => !fields.archiviato).length} in gestione`} value={String(activeClients)} />
         <Metric icon={<MessageSquareText />} label="Richieste aperte" note={`${inProgressRequests.length} in lavorazione`} tone="amber" value={String(openRequests.length)} />
-        <Metric icon={<BadgeEuro />} label="Crediti accreditati" note="nel mese corrente" tone="violet" value={formatNumber(currentMonthCredits)} />
+        <Metric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" tone="violet" value={formatNumber(currentMonthCredits)} />
         <Metric icon={<Coins />} label="Movimenti crediti" note="registrati nel mese" tone="blue" value={String(creditRows.filter((transaction) => isCurrentMonth(transaction.created_at)).length)} />
       </section>
 
