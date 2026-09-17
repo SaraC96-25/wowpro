@@ -1,7 +1,7 @@
 'use client';
 
 import {FormEvent, useState} from 'react';
-import {Archive, Check, Coins, Pencil, Search, X} from 'lucide-react';
+import {Archive, Check, Coins, Pencil, RotateCcw, Search, X} from 'lucide-react';
 
 export type AdminClient = {
   recordId: string;
@@ -24,6 +24,8 @@ export function AdminClientDirectory({archived, initialClients}: {archived: bool
   const [editingClient, setEditingClient] = useState<AdminClient | null>(null);
   const [creditClient, setCreditClient] = useState<AdminClient | null>(null);
   const [archivingClient, setArchivingClient] = useState<AdminClient | null>(null);
+  const [restoringClientId, setRestoringClientId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
   const visibleClients = clients.filter((client) => {
     const searchTerm = query.trim().toLocaleLowerCase('it-IT');
@@ -35,16 +37,32 @@ export function AdminClientDirectory({archived, initialClients}: {archived: bool
     setClients((current) => current.map((client) => client.recordId === recordId ? {...client, ...patch} : client));
   }
 
+  async function restoreClient(client: AdminClient) {
+    setRestoringClientId(client.recordId);
+    setActionError('');
+    try {
+      const response = await fetch(`/api/admin/clients/${client.recordId}/restore`, {method: 'POST'});
+      const result = await readApiResponse(response);
+      if (!response.ok) throw new Error(result.error || 'Ripristino non riuscito.');
+      replaceClient(client.recordId, {isArchived: false});
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : 'Ripristino non riuscito.');
+    } finally {
+      setRestoringClientId(null);
+    }
+  }
+
   return (
     <>
       <section className="client-toolbar">
         <div><span className="eyebrow">{archived ? 'ARCHIVIO CLIENTI' : 'ANAGRAFICA CLIENTI'}</span><h2>{archived ? 'Clienti rimossi dalla gestione operativa' : 'Stato abbonamento, saldi crediti e account manager'}</h2></div>
         <label className="client-search"><Search size={17} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Cerca cliente o azienda..." value={query} /></label>
       </section>
+      {actionError ? <p className="directory-error">{actionError}</p> : null}
 
       <section className="client-list" aria-label="Elenco clienti WOWPRO">
         <div className="client-list__head"><span>Cliente</span><span>Abbonamento</span><span>Crediti inclusi</span><span>Extra</span><span>Account manager</span><span>Azioni</span></div>
-        {visibleClients.map((client) => <ClientRow archived={archived} client={client} key={client.recordId} onArchive={() => setArchivingClient(client)} onCredits={() => setCreditClient(client)} onEdit={() => setEditingClient(client)} />)}
+        {visibleClients.map((client) => <ClientRow archived={archived} client={client} isRestoring={restoringClientId === client.recordId} key={client.recordId} onArchive={() => setArchivingClient(client)} onCredits={() => setCreditClient(client)} onEdit={() => setEditingClient(client)} onRestore={() => restoreClient(client)} />)}
         {!visibleClients.length ? <p className="client-list__empty">Nessun cliente corrisponde alla ricerca.</p> : null}
       </section>
 
@@ -55,7 +73,7 @@ export function AdminClientDirectory({archived, initialClients}: {archived: bool
   );
 }
 
-function ClientRow({archived, client, onArchive, onEdit, onCredits}: {archived: boolean; client: AdminClient; onArchive: () => void; onEdit: () => void; onCredits: () => void}) {
+function ClientRow({archived, client, isRestoring, onArchive, onEdit, onCredits, onRestore}: {archived: boolean; client: AdminClient; isRestoring: boolean; onArchive: () => void; onEdit: () => void; onCredits: () => void; onRestore: () => void}) {
   const totalCredits = client.includedCredits + client.extraCredits;
   return (
     <article className="client-table-row">
@@ -64,7 +82,7 @@ function ClientRow({archived, client, onArchive, onEdit, onCredits}: {archived: 
       <CreditBalance current={client.includedCredits} label="inclusi" />
       <div><strong className="extra-credit">{formatNumber(client.extraCredits)}</strong><small>crediti extra</small></div>
       <div><strong>{client.accountManager || 'Non assegnato'}</strong><small>{client.shopifyCustomerId ? 'Shopify collegato' : 'Shopify non collegato'}</small></div>
-      <div className="client-actions">{archived ? <span className="archive-label">Archiviato</span> : <><button className="client-action" onClick={onEdit} type="button"><Pencil size={15} />Modifica</button><button className="client-action client-action--primary" onClick={onCredits} type="button"><Coins size={16} />Crediti</button><button aria-label={`Archivia ${client.companyName}`} className="client-action client-action--archive" onClick={onArchive} type="button"><Archive size={15} /></button></>}</div>
+      <div className="client-actions">{archived ? <button className="client-action" disabled={isRestoring} onClick={onRestore} type="button"><RotateCcw size={15} />{isRestoring ? 'Ripristino...' : 'Ripristina'}</button> : <><button className="client-action" onClick={onEdit} type="button"><Pencil size={15} />Modifica</button><button className="client-action client-action--primary" onClick={onCredits} type="button"><Coins size={16} />Crediti</button><button aria-label={`Archivia ${client.companyName}`} className="client-action client-action--archive" onClick={onArchive} type="button"><Archive size={15} /></button></>}</div>
       <span className="sr-only">Saldo totale: {formatNumber(totalCredits)} crediti</span>
     </article>
   );
