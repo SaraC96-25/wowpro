@@ -36,18 +36,22 @@ const clientLinks: NavigationLink[] = [
   {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb},
 ];
 
-const adminLinks: NavigationLink[] = [
+function getAdminLinks(notificationCounts: AdminNotificationCounts): NavigationLink[] {
+  return [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
   {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
-  {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: 4},
+  {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: notificationCounts.requests || undefined},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
-  {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: 3},
-];
+  {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: notificationCounts.feedback || undefined},
+  ];
+}
 
-export function AppShell({mode, children}: {mode: ShellMode; children: React.ReactNode}) {
+export type AdminNotificationCounts = {requests: number; feedback: number};
+
+export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts}) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = mode === 'admin' ? adminLinks : clientLinks;
+  const links = mode === 'admin' ? getAdminLinks(notificationCounts) : clientLinks;
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
