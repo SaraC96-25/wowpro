@@ -41,7 +41,7 @@ export function AdminCreditLedger({entries}: {entries: CreditLedgerEntry[]}) {
 
       <section className="credit-ledger-toolbar">
         <div><span className="eyebrow">STORICO MOVIMENTI</span><h2>Registro crediti</h2><p>Ogni accredito effettuato dallo staff viene registrato qui.</p></div>
-        <Link className="button button--primary" href="/admin/clienti"><Coins size={17} />Accredita crediti</Link>
+        <Link className="button button--primary" href="/admin/clienti"><Coins size={17} />Ricarica crediti</Link>
       </section>
 
       <section className="credit-ledger" aria-label="Storico movimenti crediti">
