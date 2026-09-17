@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import {useState} from 'react';
 import {usePathname} from 'next/navigation';
 import {
   BadgeEuro,
@@ -9,10 +10,12 @@ import {
   Headphones,
   Home,
   Lightbulb,
+  LogOut,
   MessageSquareText,
   PackageCheck,
   UsersRound,
 } from 'lucide-react';
+import {createClient} from '@/lib/supabase/client';
 
 type ShellMode = 'client' | 'admin';
 
@@ -36,6 +39,14 @@ const adminLinks = [
 export function AppShell({mode, children}: {mode: ShellMode; children: React.ReactNode}) {
   const pathname = usePathname();
   const links = mode === 'admin' ? adminLinks : clientLinks;
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  async function signOut() {
+    setIsSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.assign('/login');
+  }
 
   return (
     <div className="app-frame">
@@ -60,7 +71,17 @@ export function AppShell({mode, children}: {mode: ShellMode; children: React.Rea
         </nav>
         <div className="sidebar-profile">
           <span className="avatar">{mode === 'admin' ? 'OP' : 'SL'}</span>
-          <span><strong>{mode === 'admin' ? 'Operatore WOWPRO' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? 'Team interno' : 'Piano Business attivo'}</small></span>
+          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? 'Operatore WOWPRO' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? 'Team interno' : 'Piano Business attivo'}</small></span>
+          <button
+            aria-label="Esci da WOWPRO"
+            className="sign-out-button"
+            disabled={isSigningOut}
+            onClick={signOut}
+            title="Esci"
+            type="button"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
       <div className="app-main">{children}</div>
