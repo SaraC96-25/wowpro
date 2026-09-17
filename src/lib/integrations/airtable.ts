@@ -15,6 +15,7 @@ export type AirtableWowproClient = {
   stato_abbonamento?: string;
   account_manager_nome?: string;
   grafico_dedicato_nome?: string;
+  archiviato?: boolean;
 };
 
 type AirtableResponse = {

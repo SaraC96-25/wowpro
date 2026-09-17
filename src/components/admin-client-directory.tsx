@@ -1,7 +1,7 @@
 'use client';
 
 import {FormEvent, useState} from 'react';
-import {Check, Coins, Pencil, Search, X} from 'lucide-react';
+import {Archive, Check, Coins, Pencil, Search, X} from 'lucide-react';
 
 export type AdminClient = {
   recordId: string;
@@ -15,18 +15,20 @@ export type AdminClient = {
   includedCredits: number;
   extraCredits: number;
   renewalDate: string;
+  isArchived: boolean;
 };
 
-export function AdminClientDirectory({initialClients}: {initialClients: AdminClient[]}) {
+export function AdminClientDirectory({archived, initialClients}: {archived: boolean; initialClients: AdminClient[]}) {
   const [clients, setClients] = useState(initialClients);
   const [query, setQuery] = useState('');
   const [editingClient, setEditingClient] = useState<AdminClient | null>(null);
   const [creditClient, setCreditClient] = useState<AdminClient | null>(null);
+  const [archivingClient, setArchivingClient] = useState<AdminClient | null>(null);
 
   const visibleClients = clients.filter((client) => {
     const searchTerm = query.trim().toLocaleLowerCase('it-IT');
-    return !searchTerm || [client.companyName, client.email, client.clientId, client.accountManager]
-      .some((value) => value.toLocaleLowerCase('it-IT').includes(searchTerm));
+    return client.isArchived === archived && (!searchTerm || [client.companyName, client.email, client.clientId, client.accountManager]
+      .some((value) => value.toLocaleLowerCase('it-IT').includes(searchTerm)));
   });
 
   function replaceClient(recordId: string, patch: Partial<AdminClient>) {
@@ -36,23 +38,24 @@ export function AdminClientDirectory({initialClients}: {initialClients: AdminCli
   return (
     <>
       <section className="client-toolbar">
-        <div><span className="eyebrow">ANAGRAFICA CLIENTI</span><h2>Stato abbonamento, saldi crediti e account manager</h2></div>
+        <div><span className="eyebrow">{archived ? 'ARCHIVIO CLIENTI' : 'ANAGRAFICA CLIENTI'}</span><h2>{archived ? 'Clienti rimossi dalla gestione operativa' : 'Stato abbonamento, saldi crediti e account manager'}</h2></div>
         <label className="client-search"><Search size={17} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Cerca cliente o azienda..." value={query} /></label>
       </section>
 
       <section className="client-list" aria-label="Elenco clienti WOWPRO">
         <div className="client-list__head"><span>Cliente</span><span>Abbonamento</span><span>Crediti inclusi</span><span>Extra</span><span>Account manager</span><span>Azioni</span></div>
-        {visibleClients.map((client) => <ClientRow client={client} key={client.recordId} onCredits={() => setCreditClient(client)} onEdit={() => setEditingClient(client)} />)}
+        {visibleClients.map((client) => <ClientRow archived={archived} client={client} key={client.recordId} onArchive={() => setArchivingClient(client)} onCredits={() => setCreditClient(client)} onEdit={() => setEditingClient(client)} />)}
         {!visibleClients.length ? <p className="client-list__empty">Nessun cliente corrisponde alla ricerca.</p> : null}
       </section>
 
       {editingClient ? <EditClientModal client={editingClient} onClose={() => setEditingClient(null)} onSaved={(patch) => { replaceClient(editingClient.recordId, patch); setEditingClient(null); }} /> : null}
       {creditClient ? <CreditModal client={creditClient} onClose={() => setCreditClient(null)} onSaved={(patch) => { replaceClient(creditClient.recordId, patch); setCreditClient(null); }} /> : null}
+      {archivingClient ? <ArchiveClientModal client={archivingClient} onArchived={() => { replaceClient(archivingClient.recordId, {isArchived: true}); setArchivingClient(null); }} onClose={() => setArchivingClient(null)} /> : null}
     </>
   );
 }
 
-function ClientRow({client, onEdit, onCredits}: {client: AdminClient; onEdit: () => void; onCredits: () => void}) {
+function ClientRow({archived, client, onArchive, onEdit, onCredits}: {archived: boolean; client: AdminClient; onArchive: () => void; onEdit: () => void; onCredits: () => void}) {
   const totalCredits = client.includedCredits + client.extraCredits;
   return (
     <article className="client-table-row">
@@ -61,7 +64,7 @@ function ClientRow({client, onEdit, onCredits}: {client: AdminClient; onEdit: ()
       <CreditBalance current={client.includedCredits} label="inclusi" />
       <div><strong className="extra-credit">{formatNumber(client.extraCredits)}</strong><small>crediti extra</small></div>
       <div><strong>{client.accountManager || 'Non assegnato'}</strong><small>{client.shopifyCustomerId ? 'Shopify collegato' : 'Shopify non collegato'}</small></div>
-      <div className="client-actions"><button className="client-action" onClick={onEdit} type="button"><Pencil size={15} />Modifica</button><button className="client-action client-action--primary" onClick={onCredits} type="button"><Coins size={16} />Crediti</button></div>
+      <div className="client-actions">{archived ? <span className="archive-label">Archiviato</span> : <><button className="client-action" onClick={onEdit} type="button"><Pencil size={15} />Modifica</button><button className="client-action client-action--primary" onClick={onCredits} type="button"><Coins size={16} />Crediti</button><button aria-label={`Archivia ${client.companyName}`} className="client-action client-action--archive" onClick={onArchive} type="button"><Archive size={15} /></button></>}</div>
       <span className="sr-only">Saldo totale: {formatNumber(totalCredits)} crediti</span>
     </article>
   );
@@ -140,6 +143,36 @@ function CreditModal({client, onClose, onSaved}: {client: AdminClient; onClose: 
       {error ? <p className="form-error">{error}</p> : null}
       <p className="form-hint">Il movimento verrà registrato nel log crediti.</p>
       <ModalActions isSubmitting={isSaving} submitLabel="Accredita" onClose={onClose} />
+    </form>
+  </Modal>;
+}
+
+function ArchiveClientModal({client, onArchived, onClose}: {client: AdminClient; onArchived: () => void; onClose: () => void}) {
+  const [confirmationName, setConfirmationName] = useState('');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const isConfirmed = confirmationName.trim() === client.companyName;
+
+  async function archive(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!isConfirmed) return;
+    setIsSaving(true); setError('');
+    try {
+      const response = await fetch(`/api/admin/clients/${client.recordId}/archive`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({confirmationName: confirmationName.trim()})});
+      const result = await readApiResponse(response);
+      if (!response.ok) throw new Error(result.error || 'Archiviazione non riuscita.');
+      onArchived();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Archiviazione non riuscita.');
+    } finally { setIsSaving(false); }
+  }
+
+  return <Modal onClose={onClose} subtitle="Questa operazione rimuove il cliente dalla gestione operativa." title="Archivia cliente">
+    <form className="client-form" onSubmit={archive}>
+      <p className="archive-warning">Per confermare, scrivi esattamente <strong>{client.companyName}</strong>. I dati e i movimenti resteranno conservati.</p>
+      <label className="client-form__wide">Nome azienda<input autoComplete="off" onChange={(event) => setConfirmationName(event.target.value)} placeholder={client.companyName} value={confirmationName} /></label>
+      {error ? <p className="form-error">{error}</p> : null}
+      <footer className="modal-actions"><button className="client-action" disabled={isSaving} onClick={onClose} type="button">Annulla</button><button className="client-action client-action--archive-confirm" disabled={!isConfirmed || isSaving} type="submit"><Archive size={16} />{isSaving ? 'Archiviazione...' : 'Archivia cliente'}</button></footer>
     </form>
   </Modal>;
 }

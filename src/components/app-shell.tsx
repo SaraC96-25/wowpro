@@ -31,6 +31,7 @@ const clientLinks = [
 const adminLinks = [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
   {href: '/admin/clienti', label: 'Clienti', icon: UsersRound},
+  {href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck},
   {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: 4},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
   {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: 3},
