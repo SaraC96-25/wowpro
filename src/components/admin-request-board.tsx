@@ -19,11 +19,12 @@ export type AdminGraphicRequest = {
 type RequestStatus = 'new' | 'in_progress' | 'completed' | 'rejected';
 
 export type RequestClientOption = {recordId: string; companyName: string};
+export type GraphicOperatorOption = {id: string; name: string};
 
 const statusLabels: Record<RequestStatus, string> = {new: 'Nuova', in_progress: 'In lavorazione', completed: 'Completata', rejected: 'Rifiutata'};
 const typeLabels: Record<AdminGraphicRequest['type'], string> = {revision: 'Revisione', modification: 'Modifica', creation: 'Creazione'};
 
-export function AdminRequestBoard({clients, initialRequests}: {clients: RequestClientOption[]; initialRequests: AdminGraphicRequest[]}) {
+export function AdminRequestBoard({clients, graphicOperators, initialRequests}: {clients: RequestClientOption[]; graphicOperators: GraphicOperatorOption[]; initialRequests: AdminGraphicRequest[]}) {
   const [requests, setRequests] = useState(initialRequests);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | RequestStatus>('all');
@@ -80,11 +81,11 @@ export function AdminRequestBoard({clients, initialRequests}: {clients: RequestC
       {visibleRequests.map((request) => <RequestRow isUpdating={updatingId === request.id} key={request.id} onStatusChange={(status) => updateStatus(request.id, status)} request={request} />)}
       {!visibleRequests.length ? <div className="request-board__empty"><MessageSquareText size={22} /><strong>Nessuna richiesta trovata</strong><p>{requests.length ? 'Modifica i filtri o la ricerca per vedere altre richieste.' : 'Le richieste inviate dai clienti compariranno qui.'}</p></div> : null}
     </section>
-    {isCreating ? <CreateRequestModal clients={clients} onClose={() => setIsCreating(false)} onCreated={(request) => { setRequests((current) => [request, ...current]); setIsCreating(false); }} /> : null}
+    {isCreating ? <CreateRequestModal clients={clients} graphicOperators={graphicOperators} onClose={() => setIsCreating(false)} onCreated={(request) => { setRequests((current) => [request, ...current]); setIsCreating(false); }} /> : null}
   </>;
 }
 
-function CreateRequestModal({clients, onClose, onCreated}: {clients: RequestClientOption[]; onClose: () => void; onCreated: (request: AdminGraphicRequest) => void}) {
+function CreateRequestModal({clients, graphicOperators, onClose, onCreated}: {clients: RequestClientOption[]; graphicOperators: GraphicOperatorOption[]; onClose: () => void; onCreated: (request: AdminGraphicRequest) => void}) {
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -101,6 +102,7 @@ function CreateRequestModal({clients, onClose, onCreated}: {clients: RequestClie
       brief: String(form.get('brief') || ''),
       type: String(form.get('type') || ''),
       creditCost: String(form.get('creditCost') || ''),
+      assignedTo: String(form.get('assignedTo') || '') || null,
     };
     try {
       const response = await fetch('/api/admin/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
@@ -117,6 +119,7 @@ function CreateRequestModal({clients, onClose, onCreated}: {clients: RequestClie
       <label className="client-form__wide">Cliente<select defaultValue="" name="clientId" required><option disabled value="">Seleziona un cliente</option>{clients.map((client) => <option key={client.recordId} value={client.recordId}>{client.companyName}</option>)}</select></label>
       <label>Tipo richiesta<select defaultValue="modification" name="type"><option value="revision">Revisione</option><option value="modification">Modifica</option><option value="creation">Creazione</option></select></label>
       <label>Costo crediti<input min="1" name="creditCost" placeholder="es. 2000" required type="number" /></label>
+      <label className="client-form__wide">Operatore grafico<select defaultValue="" name="assignedTo"><option value="">Da assegnare in seguito</option>{graphicOperators.map((operator) => <option key={operator.id} value={operator.id}>{operator.name}</option>)}</select></label>
       <label className="client-form__wide">Titolo<input name="title" placeholder="es. Aggiornamento listino A4" required /></label>
       <label className="client-form__wide">Brief<textarea name="brief" placeholder="Descrivi il lavoro richiesto, i materiali disponibili e le indicazioni importanti..." required rows={5} /></label>
       {error ? <p className="form-error">{error}</p> : null}

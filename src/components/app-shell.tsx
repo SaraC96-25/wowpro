@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import {createClient} from '@/lib/supabase/client';
 
-type ShellMode = 'client' | 'admin';
+type ShellMode = 'client' | 'admin' | 'graphic';
 
 type NavigationLink = {
   href: string;
@@ -36,6 +36,11 @@ const clientLinks: NavigationLink[] = [
   {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb},
 ];
 
+const graphicLinks: NavigationLink[] = [
+  {href: '/operatore', label: 'Panoramica', icon: ChartNoAxesCombined},
+  {href: '/operatore/richieste', label: 'Richieste', icon: MessageSquareText},
+];
+
 function getAdminLinks(notificationCounts: AdminNotificationCounts): NavigationLink[] {
   return [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
@@ -48,10 +53,10 @@ function getAdminLinks(notificationCounts: AdminNotificationCounts): NavigationL
 
 export type AdminNotificationCounts = {requests: number; feedback: number};
 
-export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts}) {
+export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string}) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = mode === 'admin' ? getAdminLinks(notificationCounts) : clientLinks;
+  const links = mode === 'admin' ? getAdminLinks(notificationCounts) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : clientLinks;
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
@@ -67,10 +72,10 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
       <aside className="sidebar">
         <div className="brand">
           <span className="brand__mark">W</span>
-          <span><strong>WOWPRO</strong><small>{mode === 'admin' ? 'back-office · WowStampa' : 'by WowStampa'}</small></span>
+          <span><strong>WOWPRO</strong><small>{mode === 'admin' ? 'back-office · WowStampa' : mode === 'graphic' ? 'operatore grafico · WowStampa' : 'by WowStampa'}</small></span>
         </div>
-        {mode === 'admin' ? <div className="internal-pill">PANNELLO INTERNO</div> : null}
-        <span className="nav-label">{mode === 'admin' ? 'GESTIONE' : 'PROGRAMMA'}</span>
+        {mode === 'admin' ? <div className="internal-pill">PANNELLO INTERNO</div> : mode === 'graphic' ? <div className="internal-pill">ACCESSO OPERATORE GRAFICO</div> : null}
+        <span className="nav-label">{mode === 'admin' || mode === 'graphic' ? 'GESTIONE' : 'PROGRAMMA'}</span>
         <nav className="nav-list">
           {links.map(({href, label, icon: Icon, count, children}) => {
             const childIsActive = children?.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
@@ -91,8 +96,8 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
           })}
         </nav>
         <div className="sidebar-profile">
-          <span className="avatar">{mode === 'admin' ? 'OP' : 'SL'}</span>
-          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? 'Operatore WOWPRO' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? 'Team interno' : 'Piano Business attivo'}</small></span>
+          <span className="avatar">{mode === 'admin' ? 'OP' : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : 'SL'}</span>
+          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Piano Business attivo'}</small></span>
           <button
             aria-label="Esci da WOWPRO"
             className="sign-out-button"
@@ -109,6 +114,8 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
     </div>
   );
 }
+
+function initials(value: string) { return value.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
 
 export function PageHeader({eyebrow, title, action}: {eyebrow: string; title: string; action?: React.ReactNode}) {
   return (

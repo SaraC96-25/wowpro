@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         : {data: null};
 
       if (profile?.status === 'active') {
-        const destination = ['staff', 'admin'].includes(profile.role) ? '/admin' : next;
+        const destination = profile.role === 'graphic_operator' ? '/operatore' : ['staff', 'admin'].includes(profile.role) ? '/admin' : next;
         return NextResponse.redirect(new URL(destination, appOrigin));
       }
     }

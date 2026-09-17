@@ -11,6 +11,7 @@ const createRequestSchema = z.object({
   brief: z.string().trim().min(10).max(5_000),
   type: z.enum(['revision', 'modification', 'creation']),
   creditCost: z.coerce.number().int().positive().max(100_000),
+  assignedTo: z.string().uuid().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -25,6 +26,10 @@ export async function POST(request: Request) {
 
   try {
     const admin = createAdminClient();
+    if (parsed.data.assignedTo) {
+      const {data: graphicOperator} = await admin.from('profiles').select('id').eq('id', parsed.data.assignedTo).eq('role', 'graphic_operator').eq('status', 'active').maybeSingle();
+      if (!graphicOperator) return NextResponse.json({error: 'Operatore grafico non valido.'}, {status: 400});
+    }
     const {data: company, error: companyError} = await admin
       .from('companies')
       .upsert({airtable_record_id: parsed.data.airtableRecordId, name: parsed.data.companyName}, {onConflict: 'airtable_record_id'})
@@ -42,6 +47,7 @@ export async function POST(request: Request) {
         title: parsed.data.title,
         brief: parsed.data.brief,
         credit_cost: parsed.data.creditCost,
+        assigned_to: parsed.data.assignedTo,
       })
       .select('id,public_id,title,brief,type,status,credit_cost,created_at')
       .single();
