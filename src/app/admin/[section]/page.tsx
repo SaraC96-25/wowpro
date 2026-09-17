@@ -3,6 +3,7 @@ import {listWowproClients, type AirtableWowproClient} from '@/lib/integrations/a
 import {AdminClientDirectory, type AdminClient} from '@/components/admin-client-directory';
 import {AdminCreditLedger, type CreditLedgerEntry} from '@/components/admin-credit-ledger';
 import {AdminRequestBoard, type AdminGraphicRequest} from '@/components/admin-request-board';
+import {AdminFeedbackBoard, type AdminFeedback} from '@/components/admin-feedback-board';
 import {createAdminClient} from '@/lib/supabase/admin.server';
 
 const titles: Record<string, string> = {
@@ -21,6 +22,7 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
   if (section === 'archivio-clienti') return <ClientsPage archived />;
   if (section === 'crediti') return <CreditsPage />;
   if (section === 'richieste') return <RequestsPage />;
+  if (section === 'feedback') return <FeedbackPage />;
 
   return (
     <>
@@ -34,6 +36,29 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
       </main>
     </>
   );
+}
+
+async function FeedbackPage() {
+  let feedback: AdminFeedback[] = [];
+  let hasLoadError = false;
+  try {
+    const admin = createAdminClient();
+    const [{data, error}, {data: voteRows, error: votesError}] = await Promise.all([
+      admin.from('feedback').select('id,public_id,category,title,description,status,public_response,internal_note,created_at,companies(name),author:author_id(full_name,email)').order('created_at', {ascending: false}),
+      admin.from('feedback_votes').select('feedback_id'),
+    ]);
+    if (error || votesError) throw error || votesError;
+    const votesByFeedback = (voteRows || []).reduce<Record<string, number>>((counts, vote) => ({...counts, [vote.feedback_id]: (counts[vote.feedback_id] || 0) + 1}), {});
+    feedback = (data || []).map((item) => {
+      const company = asRecord(item.companies);
+      const author = asRecord(item.author);
+      return {id: item.id, publicId: item.public_id, companyName: stringValue(company.name, 'Cliente WOWPRO'), authorName: stringValue(author.full_name, stringValue(author.email, 'Utente cliente')), category: item.category, title: item.title, description: item.description, status: item.status, publicResponse: item.public_response || '', internalNote: item.internal_note || '', votes: votesByFeedback[item.id] || 0, createdAt: item.created_at};
+    });
+  } catch (error) {
+    console.error('[Feedback board]', error);
+    hasLoadError = true;
+  }
+  return <><PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Feedback & idee" /><main className="page-content">{hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare i feedback</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminFeedbackBoard initialFeedback={feedback} />}</main></>;
 }
 
 async function RequestsPage() {
