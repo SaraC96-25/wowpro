@@ -2,6 +2,7 @@ import {PageHeader} from '@/components/app-shell';
 import {listWowproClients, type AirtableWowproClient} from '@/lib/integrations/airtable';
 import {AdminClientDirectory, type AdminClient} from '@/components/admin-client-directory';
 import {AdminCreditLedger, type CreditLedgerEntry} from '@/components/admin-credit-ledger';
+import {AdminRequestBoard, type AdminGraphicRequest} from '@/components/admin-request-board';
 import {createAdminClient} from '@/lib/supabase/admin.server';
 
 const titles: Record<string, string> = {
@@ -19,6 +20,7 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
   if (section === 'clienti') return <ClientsPage archived={false} />;
   if (section === 'archivio-clienti') return <ClientsPage archived />;
   if (section === 'crediti') return <CreditsPage />;
+  if (section === 'richieste') return <RequestsPage />;
 
   return (
     <>
@@ -32,6 +34,45 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
       </main>
     </>
   );
+}
+
+async function RequestsPage() {
+  let requests: AdminGraphicRequest[] = [];
+  let hasLoadError = false;
+  try {
+    const admin = createAdminClient();
+    const {data, error} = await admin
+      .from('graphic_requests')
+      .select('id,public_id,title,brief,type,status,credit_cost,created_at,companies(name),requester:requested_by(full_name,email)')
+      .order('created_at', {ascending: false});
+    if (error) throw error;
+    requests = (data || []).map((graphicRequest) => {
+      const company = asRecord(graphicRequest.companies);
+      const requester = asRecord(graphicRequest.requester);
+      return {
+        id: graphicRequest.id,
+        publicId: graphicRequest.public_id,
+        companyName: stringValue(company.name, 'Cliente WOWPRO'),
+        requesterName: stringValue(requester.full_name, stringValue(requester.email, 'Utente cliente')),
+        title: graphicRequest.title,
+        brief: graphicRequest.brief,
+        type: graphicRequest.type,
+        status: graphicRequest.status,
+        creditCost: graphicRequest.credit_cost,
+        createdAt: graphicRequest.created_at,
+      };
+    });
+  } catch (error) {
+    console.error('[Request board]', error);
+    hasLoadError = true;
+  }
+
+  return <>
+    <PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Richieste" />
+    <main className="page-content">
+      {hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare le richieste</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminRequestBoard initialRequests={requests} />}
+    </main>
+  </>;
 }
 
 async function CreditsPage() {
