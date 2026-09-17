@@ -1,6 +1,8 @@
 import {PageHeader} from '@/components/app-shell';
 import {listWowproClients, type AirtableWowproClient} from '@/lib/integrations/airtable';
 import {AdminClientDirectory, type AdminClient} from '@/components/admin-client-directory';
+import {AdminCreditLedger, type CreditLedgerEntry} from '@/components/admin-credit-ledger';
+import {createAdminClient} from '@/lib/supabase/admin.server';
 
 const titles: Record<string, string> = {
   clienti: 'Clienti',
@@ -16,6 +18,7 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
 
   if (section === 'clienti') return <ClientsPage archived={false} />;
   if (section === 'archivio-clienti') return <ClientsPage archived />;
+  if (section === 'crediti') return <CreditsPage />;
 
   return (
     <>
@@ -29,6 +32,42 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
       </main>
     </>
   );
+}
+
+async function CreditsPage() {
+  let entries: CreditLedgerEntry[] = [];
+  let hasLoadError = false;
+  try {
+    const admin = createAdminClient();
+    const {data, error} = await admin
+      .from('credit_transactions')
+      .select('id,bucket,amount,description,created_at,companies(name),profiles:created_by(full_name,email)')
+      .order('created_at', {ascending: false});
+    if (error) throw error;
+    entries = (data || []).map((transaction) => {
+      const company = asRecord(transaction.companies);
+      const operator = asRecord(transaction.profiles);
+      return {
+        id: transaction.id,
+        bucket: transaction.bucket,
+        amount: transaction.amount,
+        description: transaction.description,
+        createdAt: transaction.created_at,
+        companyName: stringValue(company.name, 'Cliente WOWPRO'),
+        createdBy: stringValue(operator.full_name, stringValue(operator.email, 'Operatore WOWPRO')),
+      };
+    });
+  } catch (error) {
+    console.error('[Credit ledger]', error);
+    hasLoadError = true;
+  }
+
+  return <>
+    <PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Crediti" />
+    <main className="page-content">
+      {hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare i movimenti</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminCreditLedger entries={entries} />}
+    </main>
+  </>;
 }
 
 async function ClientsPage({archived}: {archived: boolean}) {
@@ -71,3 +110,6 @@ function toAdminClient(recordId: string, fields: AirtableWowproClient): AdminCli
     isArchived: Boolean(fields.archiviato),
   };
 }
+
+function asRecord(value: unknown) { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function stringValue(value: unknown, fallback: string) { return typeof value === 'string' && value.trim() ? value : fallback; }
