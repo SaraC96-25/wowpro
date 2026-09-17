@@ -19,7 +19,15 @@ import {createClient} from '@/lib/supabase/client';
 
 type ShellMode = 'client' | 'admin';
 
-const clientLinks = [
+type NavigationLink = {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  count?: number;
+  children?: Array<{href: string; label: string; icon: typeof Home}>;
+};
+
+const clientLinks: NavigationLink[] = [
   {href: '/dashboard', label: 'Dashboard', icon: Home},
   {href: '/dashboard/crediti', label: 'Crediti', icon: CreditCard},
   {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: 2},
@@ -28,10 +36,9 @@ const clientLinks = [
   {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb},
 ];
 
-const adminLinks = [
+const adminLinks: NavigationLink[] = [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
-  {href: '/admin/clienti', label: 'Clienti', icon: UsersRound},
-  {href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck},
+  {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
   {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: 4},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
   {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: 3},
@@ -61,14 +68,21 @@ export function AppShell({mode, children}: {mode: ShellMode; children: React.Rea
         {mode === 'admin' ? <div className="internal-pill">PANNELLO INTERNO</div> : null}
         <span className="nav-label">{mode === 'admin' ? 'GESTIONE' : 'PROGRAMMA'}</span>
         <nav className="nav-list">
-          {links.map(({href, label, icon: Icon, count}) => {
-            const active = href === pathname || (href !== '/admin' && href !== '/dashboard' && pathname.startsWith(href));
+          {links.map(({href, label, icon: Icon, count, children}) => {
+            const childIsActive = children?.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
+            const active = Boolean(childIsActive) || href === pathname || (href !== '/admin' && href !== '/dashboard' && pathname.startsWith(href));
             return (
-              <Link href={href} className={active ? 'nav-link nav-link--active' : 'nav-link'} key={href}>
-                <Icon size={18} />
-                <span>{label}</span>
-                {count ? <b>{count}</b> : null}
-              </Link>
+              <div className="nav-group" key={href}>
+                <Link href={href} className={active ? 'nav-link nav-link--active' : 'nav-link'}>
+                  <Icon size={18} />
+                  <span>{label}</span>
+                  {count ? <b>{count}</b> : null}
+                </Link>
+                {children ? <div className="nav-sublist">{children.map(({href: childHref, label: childLabel, icon: ChildIcon}) => {
+                  const childActive = pathname === childHref || pathname.startsWith(`${childHref}/`);
+                  return <Link className={childActive ? 'nav-sublink nav-sublink--active' : 'nav-sublink'} href={childHref} key={childHref}><ChildIcon size={14} /><span>{childLabel}</span></Link>;
+                })}</div> : null}
+              </div>
             );
           })}
         </nav>

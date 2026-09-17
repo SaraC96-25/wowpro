@@ -64,11 +64,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .internal-pill { margin: -6px 8px 24px; padding: 5px 10px; border: 1px solid rgba(25,187,99,.38); border-radius: 999px; background: rgba(25,187,99,.12); color: #2ed577; font-size: 10px; font-weight: 900; letter-spacing: .1em; }
 .nav-label { margin: 8px 12px 10px; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
 .nav-list { display: grid; gap: 5px; }
+.nav-group { display: grid; gap: 4px; }
 .nav-link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 13px; border: 1px solid transparent; border-radius: 12px; font-size: 14px; font-weight: 700; transition: .18s ease; }
 .nav-link:hover { color: #dce4ea; background: rgba(255,255,255,.04); }
 .nav-link--active { color: white; border-color: rgba(25,187,99,.42); background: rgba(15,83,60,.38); }
 .nav-link--active::before { content: ''; position: absolute; left: -19px; width: 3px; height: 24px; border-radius: 3px; background: var(--green); }
 .nav-link b { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--green); color: #062012; font-size: 11px; }
+.nav-sublist { display: grid; gap: 2px; padding: 0 0 2px 38px; }.nav-sublink { min-height: 30px; display: flex; align-items: center; gap: 8px; color: #8994a7; font-size: 11px; font-weight: 800; transition: .18s ease; }.nav-sublink:hover, .nav-sublink--active { color: #d8e4dd; }.nav-sublink--active { color: #58db90; }
 .sidebar-profile { margin-top: auto; padding: 13px; display: flex; align-items: center; gap: 11px; border: 1px solid #2b3445; border-radius: 14px; background: rgba(255,255,255,.035); }
 .sidebar-profile .avatar { width: 36px; height: 36px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; color: white; background: #6f4de7; font-size: 12px; font-weight: 900; }
 .sidebar-profile__copy { min-width: 0; flex: 1; }
@@ -174,7 +176,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .app-frame { display: block; }
   .sidebar { position: static; width: 100%; height: auto; padding: 14px; }
   .sidebar .brand { padding-bottom: 12px; }.nav-label, .internal-pill, .sidebar-profile { display: none; }
-  .nav-list { display: flex; overflow-x: auto; gap: 7px; padding-bottom: 2px; }
+  .nav-list { display: flex; overflow-x: auto; gap: 7px; padding-bottom: 2px; }.nav-sublist { display: none; }
   .nav-link { flex: 0 0 auto; min-height: 40px; padding: 0 11px; font-size: 12px; }
   .nav-link--active::before { display: none; }
   .page-header { height: 78px; padding: 0 20px; }.credit-chip { display: none; }
