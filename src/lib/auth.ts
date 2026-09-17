@@ -12,16 +12,22 @@ export type CurrentProfile = {
   status: 'invited' | 'active' | 'suspended' | 'revoked';
 };
 
-export async function requireProfile(allowedRoles?: AppRole[]) {
+export async function getCurrentProfile() {
   const supabase = await createClient();
   const {data: {user}} = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) return null;
 
   const {data: profile} = await supabase
     .from('profiles')
     .select('id,email,full_name,role,company_id,status')
     .eq('id', user.id)
     .single<CurrentProfile>();
+
+  return profile;
+}
+
+export async function requireProfile(allowedRoles?: AppRole[]) {
+  const profile = await getCurrentProfile();
 
   if (!profile || profile.status !== 'active') redirect('/accesso-negato');
   if (allowedRoles && !allowedRoles.includes(profile.role)) redirect('/accesso-negato');

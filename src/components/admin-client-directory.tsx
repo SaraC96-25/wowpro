@@ -1,0 +1,162 @@
+'use client';
+
+import {FormEvent, useState} from 'react';
+import {Check, Coins, Pencil, Search, X} from 'lucide-react';
+
+export type AdminClient = {
+  recordId: string;
+  clientId: string;
+  companyName: string;
+  email: string;
+  plan: string;
+  subscriptionStatus: string;
+  accountManager: string;
+  shopifyCustomerId: string;
+  includedCredits: number;
+  extraCredits: number;
+  renewalDate: string;
+};
+
+export function AdminClientDirectory({initialClients}: {initialClients: AdminClient[]}) {
+  const [clients, setClients] = useState(initialClients);
+  const [query, setQuery] = useState('');
+  const [editingClient, setEditingClient] = useState<AdminClient | null>(null);
+  const [creditClient, setCreditClient] = useState<AdminClient | null>(null);
+
+  const visibleClients = clients.filter((client) => {
+    const searchTerm = query.trim().toLocaleLowerCase('it-IT');
+    return !searchTerm || [client.companyName, client.email, client.clientId, client.accountManager]
+      .some((value) => value.toLocaleLowerCase('it-IT').includes(searchTerm));
+  });
+
+  function replaceClient(recordId: string, patch: Partial<AdminClient>) {
+    setClients((current) => current.map((client) => client.recordId === recordId ? {...client, ...patch} : client));
+  }
+
+  return (
+    <>
+      <section className="client-toolbar">
+        <div><span className="eyebrow">ANAGRAFICA CLIENTI</span><h2>Stato abbonamento, saldi crediti e account manager</h2></div>
+        <label className="client-search"><Search size={17} /><input onChange={(event) => setQuery(event.target.value)} placeholder="Cerca cliente o azienda..." value={query} /></label>
+      </section>
+
+      <section className="client-list" aria-label="Elenco clienti WOWPRO">
+        <div className="client-list__head"><span>Cliente</span><span>Abbonamento</span><span>Crediti inclusi</span><span>Extra</span><span>Account manager</span><span>Azioni</span></div>
+        {visibleClients.map((client) => <ClientRow client={client} key={client.recordId} onCredits={() => setCreditClient(client)} onEdit={() => setEditingClient(client)} />)}
+        {!visibleClients.length ? <p className="client-list__empty">Nessun cliente corrisponde alla ricerca.</p> : null}
+      </section>
+
+      {editingClient ? <EditClientModal client={editingClient} onClose={() => setEditingClient(null)} onSaved={(patch) => { replaceClient(editingClient.recordId, patch); setEditingClient(null); }} /> : null}
+      {creditClient ? <CreditModal client={creditClient} onClose={() => setCreditClient(null)} onSaved={(patch) => { replaceClient(creditClient.recordId, patch); setCreditClient(null); }} /> : null}
+    </>
+  );
+}
+
+function ClientRow({client, onEdit, onCredits}: {client: AdminClient; onEdit: () => void; onCredits: () => void}) {
+  const totalCredits = client.includedCredits + client.extraCredits;
+  return (
+    <article className="client-table-row">
+      <div><span className="client-row__id">{client.clientId}</span><h3>{client.companyName}</h3><p>{client.email}</p></div>
+      <div><span className={`subscription-pill subscription-pill--${statusTone(client.subscriptionStatus)}`}>{client.subscriptionStatus || 'Non impostato'}</span><small>{client.plan || 'Piano non assegnato'}</small></div>
+      <CreditBalance current={client.includedCredits} label="inclusi" />
+      <div><strong className="extra-credit">{formatNumber(client.extraCredits)}</strong><small>crediti extra</small></div>
+      <div><strong>{client.accountManager || 'Non assegnato'}</strong><small>{client.shopifyCustomerId ? 'Shopify collegato' : 'Shopify non collegato'}</small></div>
+      <div className="client-actions"><button className="client-action" onClick={onEdit} type="button"><Pencil size={15} />Modifica</button><button className="client-action client-action--primary" onClick={onCredits} type="button"><Coins size={16} />Crediti</button></div>
+      <span className="sr-only">Saldo totale: {formatNumber(totalCredits)} crediti</span>
+    </article>
+  );
+}
+
+function CreditBalance({current, label}: {current: number; label: string}) {
+  const ratio = Math.min(current / 12_000, 1) * 100;
+  return <div><strong>{formatNumber(current)}</strong><small>{label}</small><span className="credit-meter"><i style={{width: `${ratio}%`}} /></span></div>;
+}
+
+function EditClientModal({client, onClose, onSaved}: {client: AdminClient; onClose: () => void; onSaved: (patch: Partial<AdminClient>) => void}) {
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true); setError('');
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      ragione_sociale: String(form.get('companyName') || ''),
+      email_login: String(form.get('email') || ''),
+      piano: String(form.get('plan') || ''),
+      stato_abbonamento: String(form.get('status') || ''),
+      account_manager_nome: String(form.get('manager') || ''),
+      shopify_customer_id: String(form.get('shopifyCustomerId') || ''),
+    };
+    try {
+      const response = await fetch(`/api/admin/clients/${client.recordId}`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Salvataggio non riuscito.');
+      onSaved({companyName: result.fields.ragione_sociale || '', email: result.fields.email_login || '', plan: result.fields.piano || '', subscriptionStatus: result.fields.stato_abbonamento || '', accountManager: result.fields.account_manager_nome || '', shopifyCustomerId: result.fields.shopify_customer_id || ''});
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Salvataggio non riuscito.');
+    } finally { setIsSaving(false); }
+  }
+
+  return <Modal onClose={onClose} subtitle={client.clientId} title="Modifica cliente">
+    <form className="client-form" onSubmit={save}>
+      <label>Azienda<input defaultValue={client.companyName} name="companyName" required /></label>
+      <label>Email di accesso<input defaultValue={client.email} name="email" required type="email" /></label>
+      <label>Piano<select defaultValue={client.plan} name="plan"><option>Basic</option><option>Standard</option><option>Premium</option></select></label>
+      <label>Stato abbonamento<select defaultValue={client.subscriptionStatus} name="status"><option>Attivo</option><option>Sospeso</option><option>Disdetto</option></select></label>
+      <label>Account manager<input defaultValue={client.accountManager} name="manager" /></label>
+      <label>Shopify Customer ID<input defaultValue={client.shopifyCustomerId} name="shopifyCustomerId" /></label>
+      {error ? <p className="form-error">{error}</p> : null}
+      <ModalActions isSubmitting={isSaving} submitLabel="Salva modifiche" onClose={onClose} />
+    </form>
+  </Modal>;
+}
+
+function CreditModal({client, onClose, onSaved}: {client: AdminClient; onClose: () => void; onSaved: (patch: Partial<AdminClient>) => void}) {
+  const [bucket, setBucket] = useState<'extra' | 'included'>('extra');
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true); setError('');
+    const form = new FormData(event.currentTarget);
+    const payload = {bucket, amount: String(form.get('amount') || ''), reason: String(form.get('reason') || '')};
+    try {
+      const response = await fetch(`/api/admin/clients/${client.recordId}/credits`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Accredito non riuscito.');
+      onSaved({includedCredits: Number(result.fields.crediti_inclusi_residui || 0), extraCredits: Number(result.fields.crediti_extra_residui || 0)});
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Accredito non riuscito.');
+    } finally { setIsSaving(false); }
+  }
+
+  return <Modal onClose={onClose} subtitle={`${client.companyName} · ${client.clientId}`} title="Accredita crediti">
+    <form className="client-form" onSubmit={save}>
+      <fieldset className="credit-choice"><legend>Tipo di credito</legend><button className={bucket === 'extra' ? 'is-selected' : ''} onClick={() => setBucket('extra')} type="button">Extra (non scadono)</button><button className={bucket === 'included' ? 'is-selected' : ''} onClick={() => setBucket('included')} type="button">Inclusi (mensili)</button></fieldset>
+      <label>Quantità<input min="1" name="amount" placeholder="es. 2000" required type="number" /></label>
+      <label className="client-form__wide">Motivazione<textarea name="reason" placeholder="Motivo dell'accredito..." required rows={4} /></label>
+      {error ? <p className="form-error">{error}</p> : null}
+      <p className="form-hint">Il movimento verrà registrato nel log crediti.</p>
+      <ModalActions isSubmitting={isSaving} submitLabel="Accredita" onClose={onClose} />
+    </form>
+  </Modal>;
+}
+
+function Modal({children, onClose, subtitle, title}: {children: React.ReactNode; onClose: () => void; subtitle: string; title: string}) {
+  return <div aria-modal="true" className="modal-backdrop" role="dialog"><section className="client-modal"><header><div><h2>{title}</h2><p>{subtitle}</p></div><button aria-label="Chiudi" className="modal-close" onClick={onClose} type="button"><X size={19} /></button></header>{children}</section></div>;
+}
+
+function ModalActions({isSubmitting, onClose, submitLabel}: {isSubmitting: boolean; onClose: () => void; submitLabel: string}) {
+  return <footer className="modal-actions"><button className="client-action" disabled={isSubmitting} onClick={onClose} type="button">Annulla</button><button className="client-action client-action--primary" disabled={isSubmitting} type="submit"><Check size={16} />{isSubmitting ? 'Salvataggio...' : submitLabel}</button></footer>;
+}
+
+function statusTone(status: string) {
+  const value = status.toLocaleLowerCase('it-IT');
+  if (value === 'attivo') return 'active';
+  if (value === 'sospeso') return 'paused';
+  return 'cancelled';
+}
+
+function formatNumber(value: number) { return new Intl.NumberFormat('it-IT').format(value); }

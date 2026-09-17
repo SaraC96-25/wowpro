@@ -1,6 +1,6 @@
 import 'server-only';
 
-type AirtableRecord<T> = {id: string; fields: T};
+export type AirtableRecord<T> = {id: string; fields: T};
 
 export type AirtableWowproClient = {
   cliente_id?: string;
@@ -52,6 +52,34 @@ export async function listWowproClients() {
   } while (offset);
 
   return records;
+}
+
+export async function getWowproClient(recordId: string) {
+  const {token, baseId, table} = getAirtableConfig();
+  const response = await fetch(
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`,
+    {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store'},
+  );
+  if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);
+  return await response.json() as AirtableRecord<AirtableWowproClient>;
+}
+
+export async function updateWowproClient(recordId: string, fields: Partial<AirtableWowproClient>) {
+  const {token, baseId, table} = getAirtableConfig();
+  const response = await fetch(
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({fields}),
+      cache: 'no-store',
+    },
+  );
+  if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);
+  return await response.json() as AirtableRecord<AirtableWowproClient>;
 }
 
 export async function listAuthorizedWowproClients() {

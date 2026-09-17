@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import {useState} from 'react';
-import {usePathname} from 'next/navigation';
+import {usePathname, useRouter} from 'next/navigation';
 import {
   BadgeEuro,
   ChartNoAxesCombined,
@@ -38,6 +38,7 @@ const adminLinks = [
 
 export function AppShell({mode, children}: {mode: ShellMode; children: React.ReactNode}) {
   const pathname = usePathname();
+  const router = useRouter();
   const links = mode === 'admin' ? adminLinks : clientLinks;
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -45,7 +46,8 @@ export function AppShell({mode, children}: {mode: ShellMode; children: React.Rea
     setIsSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.assign('/login');
+    router.push('/login');
+    router.refresh();
   }
 
   return (
