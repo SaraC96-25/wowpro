@@ -5,6 +5,8 @@ import {AdminCreditLedger, type CreditLedgerEntry} from '@/components/admin-cred
 import {AdminRequestBoard, type AdminGraphicRequest} from '@/components/admin-request-board';
 import {AdminFeedbackBoard, type AdminFeedback} from '@/components/admin-feedback-board';
 import {createAdminClient} from '@/lib/supabase/admin.server';
+import {requireProfile} from '@/lib/auth';
+import {AdminTeamDirectory, type TeamOperator} from '@/components/admin-team-directory';
 
 const titles: Record<string, string> = {
   clienti: 'Clienti',
@@ -23,6 +25,7 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
   if (section === 'crediti') return <CreditsPage />;
   if (section === 'richieste') return <RequestsPage />;
   if (section === 'feedback') return <FeedbackPage />;
+  if (section === 'team-ruoli') return <TeamRolesPage />;
 
   return (
     <>
@@ -36,6 +39,18 @@ export default async function AdminSectionPage({params}: {params: Promise<{secti
       </main>
     </>
   );
+}
+
+async function TeamRolesPage() {
+  await requireProfile(['admin']);
+  let operators: TeamOperator[] = [];
+  let hasLoadError = false;
+  try {
+    const {data, error} = await createAdminClient().from('profiles').select('id,email,full_name,role,status,created_at').in('role', ['admin', 'staff', 'graphic_operator']).order('full_name');
+    if (error) throw error;
+    operators = (data || []).map((operator) => ({id: operator.id, email: operator.email, fullName: operator.full_name || operator.email, role: operator.role, status: operator.status, createdAt: operator.created_at}));
+  } catch (error) { console.error('[Team directory]', error); hasLoadError = true; }
+  return <><PageHeader eyebrow="WowStampa · Amministrazione" title="Team & ruoli" /><main className="page-content">{hasLoadError ? <section className="empty-card empty-card--section"><span className="eyebrow">REGISTRO NON DISPONIBILE</span><h2>Impossibile caricare il team</h2><p>Verifica la configurazione Supabase del servizio e riprova.</p></section> : <AdminTeamDirectory initialOperators={operators} />}</main></>;
 }
 
 async function FeedbackPage() {

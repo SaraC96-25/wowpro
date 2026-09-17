@@ -4,28 +4,33 @@ import {ArrowUpRight, BadgeEuro, Clock3, Coins, MessageSquareText, Plus, UsersRo
 import {PageHeader} from '@/components/app-shell';
 import {listWowproClients} from '@/lib/integrations/airtable';
 import {createAdminClient} from '@/lib/supabase/admin.server';
+import {requireProfile} from '@/lib/auth';
 
 type Activity = {id: string; title: string; note: string; value: string; tone: 'green' | 'violet' | 'blue' | 'amber'; href: string; createdAt: string};
 
 export default async function AdminPage() {
+  const profile = await requireProfile(['staff', 'admin']);
+  const isAdministrator = profile.role === 'admin';
   const admin = createAdminClient();
-  const [clientsResult, requestsResult, creditsResult] = await Promise.allSettled([
+  const [clientsResult, requestsResult, creditsResult, teamResult] = await Promise.allSettled([
     listWowproClients(),
-    admin.from('graphic_requests').select('id,public_id,title,status,created_at,companies(name)').order('created_at', {ascending: false}),
+    admin.from('graphic_requests').select('id,public_id,title,status,created_at,assigned_to,companies(name)').order('created_at', {ascending: false}),
     admin.from('credit_transactions').select('id,amount,description,created_at,companies(name)').order('created_at', {ascending: false}),
+    isAdministrator ? admin.from('profiles').select('id,role,status').in('role', ['admin', 'staff', 'graphic_operator']) : Promise.resolve({data: [], error: null}),
   ]);
   const clients = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
   const requestRows = requestsResult.status === 'fulfilled' && !requestsResult.value.error ? requestsResult.value.data || [] : [];
   const creditRows = creditsResult.status === 'fulfilled' && !creditsResult.value.error ? creditsResult.value.data || [] : [];
+  const teamMembers = teamResult.status === 'fulfilled' && !teamResult.value.error ? teamResult.value.data || [] : [];
   const activeClients = clients.filter(({fields}) => !fields.archiviato && fields.stato_abbonamento?.toLocaleLowerCase('it-IT') === 'attivo').length;
   const openRequests = requestRows.filter((request) => request.status === 'new' || request.status === 'in_progress');
   const inProgressRequests = requestRows.filter((request) => request.status === 'in_progress');
   const currentMonthCredits = creditRows.filter((transaction) => isCurrentMonth(transaction.created_at)).reduce((total, transaction) => total + transaction.amount, 0);
   const activities = [...requestRows.map(toRequestActivity), ...creditRows.map(toCreditActivity)].sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt)).slice(0, 6);
-  const hasDataError = clientsResult.status === 'rejected' || requestsResult.status === 'rejected' || creditsResult.status === 'rejected' || (requestsResult.status === 'fulfilled' && Boolean(requestsResult.value.error)) || (creditsResult.status === 'fulfilled' && Boolean(creditsResult.value.error));
+  const hasDataError = clientsResult.status === 'rejected' || requestsResult.status === 'rejected' || creditsResult.status === 'rejected' || teamResult.status === 'rejected' || (requestsResult.status === 'fulfilled' && Boolean(requestsResult.value.error)) || (creditsResult.status === 'fulfilled' && Boolean(creditsResult.value.error)) || (teamResult.status === 'fulfilled' && Boolean(teamResult.value.error));
 
   return <>
-    <PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Panoramica" />
+    <PageHeader eyebrow={isAdministrator ? 'WowStampa · Amministrazione' : 'WowStampa · Programma WOWPRO'} title={isAdministrator ? 'Panoramica amministrazione' : 'Panoramica'} />
     <main className="page-content">
       {hasDataError ? <p className="overview-notice">Alcuni dati non sono momentaneamente disponibili. I moduli operativi restano accessibili.</p> : null}
       <section className="metric-grid">
@@ -34,6 +39,8 @@ export default async function AdminPage() {
         <Metric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" tone="violet" value={formatNumber(currentMonthCredits)} />
         <Metric icon={<Coins />} label="Movimenti crediti" note="registrati nel mese" tone="blue" value={String(creditRows.filter((transaction) => isCurrentMonth(transaction.created_at)).length)} />
       </section>
+
+      {isAdministrator ? <section><div className="section-title"><div><span className="eyebrow">SITUAZIONE TEAM</span><h2>Come lavora il team</h2></div><Link className="button button--ghost" href="/admin/team-ruoli">Gestisci team <ArrowUpRight size={15} /></Link></div><div className="team-overview"><TeamOverviewCard label="Amministrazione" note="accesso completo" value={teamMembers.filter((member) => member.role === 'admin' && member.status === 'active').length} /><TeamOverviewCard label="Commerciale" note="operatori attivi" value={teamMembers.filter((member) => member.role === 'staff' && member.status === 'active').length} tone="blue" /><TeamOverviewCard label="Grafico" note={`${requestRows.filter((request) => request.assigned_to).length} richieste assegnate`} value={teamMembers.filter((member) => member.role === 'graphic_operator' && member.status === 'active').length} tone="violet" /><TeamOverviewCard label="Da assegnare" note="richieste senza grafico" value={requestRows.filter((request) => !request.assigned_to && (request.status === 'new' || request.status === 'in_progress')).length} tone="amber" /></div></section> : null}
 
       <section>
         <div className="section-title"><div><span className="eyebrow">ATTIVITÀ RECENTE</span><h2>Cosa sta succedendo</h2></div><Link className="button button--ghost" href="/admin/richieste">Tutte le richieste <ArrowUpRight size={15} /></Link></div>
@@ -54,6 +61,8 @@ export default async function AdminPage() {
     </main>
   </>;
 }
+
+function TeamOverviewCard({label, note, tone = 'green', value}: {label: string; note: string; tone?: string; value: number}) { return <article className="team-overview__card"><span className={`metric-icon metric-icon--${tone}`}><UsersRound /></span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
 
 function Metric({icon, label, note, tone = 'green', value}: {icon: React.ReactNode; label: string; note: string; tone?: string; value: string}) {
   return <article className="metric-card"><span className={`metric-icon metric-icon--${tone}`}>{icon}</span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>;

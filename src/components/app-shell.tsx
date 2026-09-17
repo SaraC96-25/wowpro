@@ -24,6 +24,7 @@ type NavigationLink = {
   label: string;
   icon: typeof Home;
   count?: number;
+  section?: string;
   children?: Array<{href: string; label: string; icon: typeof Home}>;
 };
 
@@ -41,22 +42,24 @@ const graphicLinks: NavigationLink[] = [
   {href: '/operatore/richieste', label: 'Richieste', icon: MessageSquareText},
 ];
 
-function getAdminLinks(notificationCounts: AdminNotificationCounts): NavigationLink[] {
-  return [
+function getAdminLinks(notificationCounts: AdminNotificationCounts, isAdministrator: boolean): NavigationLink[] {
+  const links: NavigationLink[] = [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
   {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
   {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: notificationCounts.requests || undefined},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
   {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: notificationCounts.feedback || undefined},
   ];
+  if (isAdministrator) links.push({href: '/admin/team-ruoli', label: 'Team & ruoli', icon: UsersRound, section: 'AMMINISTRAZIONE'});
+  return links;
 }
 
 export type AdminNotificationCounts = {requests: number; feedback: number};
 
-export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string}) {
+export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName, isAdministrator = false}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string; isAdministrator?: boolean}) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = mode === 'admin' ? getAdminLinks(notificationCounts) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : clientLinks;
+  const links = mode === 'admin' ? getAdminLinks(notificationCounts, isAdministrator) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : clientLinks;
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
@@ -77,11 +80,12 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
         {mode === 'admin' ? <div className="internal-pill">PANNELLO INTERNO</div> : mode === 'graphic' ? <div className="internal-pill">ACCESSO OPERATORE GRAFICO</div> : null}
         <span className="nav-label">{mode === 'admin' || mode === 'graphic' ? 'GESTIONE' : 'PROGRAMMA'}</span>
         <nav className="nav-list">
-          {links.map(({href, label, icon: Icon, count, children}) => {
+          {links.map(({href, label, icon: Icon, count, children, section}) => {
             const childIsActive = children?.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
             const active = Boolean(childIsActive) || href === pathname || (href !== '/admin' && href !== '/dashboard' && pathname.startsWith(href));
             return (
               <div className="nav-group" key={href}>
+                {section ? <span className="nav-label nav-label--section">{section}</span> : null}
                 <Link href={href} className={active ? 'nav-link nav-link--active' : 'nav-link'}>
                   <Icon size={18} />
                   <span>{label}</span>
@@ -96,8 +100,8 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
           })}
         </nav>
         <div className="sidebar-profile">
-          <span className="avatar">{mode === 'admin' ? 'OP' : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : 'SL'}</span>
-          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Piano Business attivo'}</small></span>
+          <span className="avatar">{mode === 'admin' ? initials(isAdministrator ? 'Amministrazione' : operatorName || 'Operatore') : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : 'SL'}</span>
+          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? isAdministrator ? 'Amministrazione' : operatorName || 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? isAdministrator ? 'Accesso completo' : 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Piano Business attivo'}</small></span>
           <button
             aria-label="Esci da WOWPRO"
             className="sign-out-button"
