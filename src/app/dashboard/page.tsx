@@ -1,68 +1,42 @@
 import Link from 'next/link';
-import {BadgePlus, Box, CreditCard, Headphones, MessageSquareText, PackageCheck, Plus, ShoppingBag, Star} from 'lucide-react';
+import {ArrowRight, BadgePercent, Box, Gift, Headphones, ScanSearch, Sparkles} from 'lucide-react';
 
 import {PageHeader} from '@/components/app-shell';
 import {requireProfile} from '@/lib/auth';
 import {getWowproClient} from '@/lib/integrations/airtable';
 import {createClient} from '@/lib/supabase/server';
 
-type Activity = {id: string; title: string; detail: string; createdAt: string; value?: string; tone: 'amber' | 'green' | 'violet'; icon: 'request' | 'complete' | 'credit'};
+const benefits = [
+  {icon: Headphones, title: 'Account manager dedicato', text: 'Una referente che conosce i tuoi progetti, raggiungibile via email, chat e telefono.'},
+  {icon: BadgePercent, title: 'Listino prezzi dedicato', text: 'Prezzi riservati WOWPRO su tutto il catalogo, applicati in automatico al checkout.'},
+  {icon: Sparkles, title: 'Produzione prioritaria', tag: 'FAST LANE', text: 'I tuoi ordini saltano in cima alla coda di stampa, lavorati prima degli altri.'},
+  {icon: Box, title: 'Spedizione white label', text: 'Pacco anonimo e mittente personalizzato: spedisci ai tuoi clienti a tuo nome.'},
+  {icon: ScanSearch, title: 'Preventivi rapidi', text: 'Quotazioni su misura in tempi brevi, senza attese e senza trafile.'},
+  {icon: Gift, title: 'Accesso prioritario alle promo', tag: 'RISERVATO', text: 'Sei tra i primi ad accedere a offerte e promozioni dedicate ai clienti WOWPRO.'},
+];
 
 export default async function DashboardPage() {
   const profile = await requireProfile(['client']);
   const supabase = await createClient();
-  const [{data: company}, {data: requests}, {data: transactions}] = await Promise.all([
-    supabase.from('companies').select('name,airtable_record_id').eq('id', profile.company_id || '').maybeSingle(),
-    supabase.from('graphic_requests').select('id,public_id,title,status,created_at,completed_at').order('created_at', {ascending: false}).limit(8),
-    supabase.from('credit_transactions').select('id,bucket,amount,description,created_at').order('created_at', {ascending: false}).limit(8),
-  ]);
-  let included = 0; let extra = 0; let monthly = 0; let manager = '';
+  const {data: company} = await supabase.from('companies').select('name,airtable_record_id').eq('id', profile.company_id || '').maybeSingle();
+  let credits = 0;
+  let plan = 'WOWPRO';
+  let manager = '';
   if (company?.airtable_record_id) {
     try {
       const airtable = await getWowproClient(company.airtable_record_id);
-      included = Number(airtable.fields.crediti_inclusi_residui || 0);
-      extra = Number(airtable.fields.crediti_extra_residui || 0);
-      monthly = Number(airtable.fields.crediti_inclusi_mese || 0);
+      credits = Number(airtable.fields.crediti_inclusi_residui || 0) + Number(airtable.fields.crediti_extra_residui || 0);
+      plan = airtable.fields.piano ? `WOWPRO ${airtable.fields.piano}` : plan;
       manager = airtable.fields.account_manager_nome || '';
-    } catch { /* Dashboard data remains available when Airtable is unreachable. */ }
+    } catch { /* The dashboard remains available when Airtable is unreachable. */ }
   }
-  const available = included + extra;
-  const open = (requests || []).filter((request) => request.status === 'new' || request.status === 'in_progress');
-  const activities: Activity[] = [
-    ...(requests || []).map((request) => ({
-      id: `request-${request.id}`,
-      title: `${request.status === 'completed' ? 'Completata' : 'Nuova richiesta'} · ${request.title}`,
-      detail: request.status === 'in_progress' ? 'In lavorazione' : request.status === 'completed' ? 'Richiesta completata' : 'In attesa di lavorazione',
-      createdAt: request.completed_at || request.created_at,
-      tone: request.status === 'completed' ? 'green' as const : 'amber' as const,
-      icon: request.status === 'completed' ? 'complete' as const : 'request' as const,
-    })),
-    ...(transactions || []).map((transaction) => ({
-      id: `credit-${transaction.id}`,
-      title: transaction.description,
-      detail: transaction.bucket === 'extra' ? 'Crediti extra' : 'Crediti inclusi',
-      createdAt: transaction.created_at,
-      value: `${transaction.amount > 0 ? '+' : ''}${number(transaction.amount)}`,
-      tone: transaction.bucket === 'extra' ? 'violet' as const : 'green' as const,
-      icon: 'credit' as const,
-    })),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
-
-  return <><PageHeader eyebrow={'WOWPRO · ' + (company?.name || 'Area cliente')} title="Dashboard" action={<div className="credit-chip"><i /> <strong>{number(available)}</strong> crediti disponibili</div>} /><main className="page-content client-dashboard">
-    <section className="client-dashboard__metrics">
-      <article className="dashboard-metric dashboard-metric--credits"><span><CreditCard size={19} /></span><p>Crediti disponibili</p><strong>{number(available)}</strong><i><b style={{width: monthly ? `${Math.min(available / monthly, 1) * 100}%` : '0%'}} /></i><Link href="/dashboard/crediti">Vedi dettaglio crediti <span>→</span></Link></article>
-      <article className="dashboard-metric"><span className="dashboard-metric__blue"><MessageSquareText size={19} /></span><p>Richieste aperte</p><strong>{open.length}</strong><small><i /> {open.filter((request) => request.status === 'in_progress').length} in lavorazione · {open.filter((request) => request.status === 'new').length} nuova{open.filter((request) => request.status === 'new').length === 1 ? '' : 'e'}</small></article>
-      <article className="dashboard-metric"><span className="dashboard-metric__amber"><ShoppingBag size={19} /></span><p>Ultimo ordine</p><strong className="dashboard-metric__empty">—</strong><small>Collega Shopify per visualizzare gli ordini.</small></article>
-    </section>
-    <section><div className="client-dashboard__section-title"><h2>Azioni rapide</h2></div><div className="client-dashboard__quick-actions">
-      <Link href="/dashboard/richieste"><span><Plus size={21} /></span><strong>Nuova richiesta</strong><p>Revisione, modifica o creazione grafica</p></Link>
-      <Link href="/dashboard/crediti"><span><BadgePlus size={19} /></span><strong>Acquista crediti</strong><p>Gestisci i crediti extra del tuo account</p></Link>
-      <Link href="/dashboard/ordini"><span><PackageCheck size={19} /></span><strong>I tuoi ordini</strong><p>Stato produzione e tracking spedizioni</p></Link>
-      <Link href="/dashboard/supporto"><span><Headphones size={19} /></span><strong>Account manager</strong><p>{manager ? `Parla con ${manager}, la tua referente WOWPRO` : 'Il tuo referente WOWPRO è a disposizione'}</p></Link>
-    </div></section>
-    <section><div className="client-dashboard__section-title"><h2>Attività recenti</h2><Link className="button button--ghost" href="/dashboard/crediti">Vedi storico crediti</Link></div><div className="client-dashboard__activity">{activities.map((activity) => <Link href={activity.icon === 'credit' ? '/dashboard/crediti' : '/dashboard/richieste'} key={activity.id}><span className={`client-activity-icon client-activity-icon--${activity.tone}`}>{activity.icon === 'credit' ? <BadgePlus size={17} /> : activity.icon === 'complete' ? <Star size={16} /> : <MessageSquareText size={16} />}</span><span><strong>{activity.title}</strong><small>{date(activity.createdAt)} · {activity.detail}</small></span>{activity.value ? <b className={activity.value.startsWith('+') ? 'positive' : 'negative'}>{activity.value}</b> : null}</Link>)}{!activities.length ? <div className="client-dashboard__activity-empty"><Box size={21} /><strong>Nessuna attività ancora</strong><p>Richieste e movimenti crediti compariranno qui.</p></div> : null}</div></section>
+  const firstName = (profile.full_name || company?.name || 'cliente').trim().split(/\s+/)[0];
+  return <><PageHeader eyebrow={`WOWPRO · ${company?.name || 'Area cliente'}`} title="Dashboard" action={<div className="credit-chip"><i /> <strong>{number(credits)}</strong> crediti disponibili</div>} /><main className="page-content client-unified-dashboard">
+    <section className="unified-hero"><div className="unified-hero__content"><div className="unified-hero__greeting"><span>👋</span><strong>Bentornata, <em>{firstName}</em></strong><small>{company?.name || 'Cliente WOWPRO'} · Piano {plan}</small></div><h2>Il tuo reparto<br />grafico è <em>pronto.</em></h2><p>Con WOWPRO hai un team grafico dedicato sempre a disposizione. Ogni mese un plafond di crediti da usare quando vuoi: su revisioni, modifiche e creazioni grafiche. Tu pensi al business, al resto pensiamo noi.</p><div className="unified-hero__actions"><Link className="button button--primary" href="/dashboard/richieste">Inizia una nuova richiesta <ArrowRight size={18} /></Link><Link className="button button--ghost" href="/dashboard/crediti">Esplora i crediti</Link></div>{manager ? <div className="unified-hero__manager"><span>{initials(manager)}</span><p>Il tuo account manager: <strong>{manager}</strong></p></div> : null}</div><div className="unified-hero__art" aria-hidden="true"><i className="art-orb" /><i className="art-page art-page--back" /><i className="art-page art-page--front"><b /><b /><b /></i><i className="art-image"><span>◆</span></i><i className="art-checklist"><b>✓ Design professionale</b><b>✓ Consegne rapide</b><b>✓ Revisioni illimitate</b><b>✓ Un team sempre con te</b></i><i className="art-arrow">Dalle tue idee<br />ai grandi risultati</i></div></section>
+    <section className="unified-benefits"><div className="unified-benefits__heading"><div><h2>Vantaggi inclusi nel piano</h2><p>Tutto quello che ottieni con il piano {plan}</p></div><Link href="/dashboard/crediti">Scopri tutti i vantaggi <ArrowRight size={15} /></Link></div><div className="unified-benefits__grid">{benefits.map(({icon: Icon, title, tag, text}) => <article key={title}><span><Icon size={22} /></span><div><h3>{title} {tag ? <small>{tag}</small> : null}</h3><p>{text}</p></div></article>)}</div></section>
+    <section className="unified-cta"><div><h2>Pronto a dare vita alla tua prossima idea?</h2><p>Carica il brief, raccontaci cosa ti serve e il nostro team grafico si mette subito al lavoro.</p><Link className="button button--primary" href="/dashboard/richieste">Inizia una nuova richiesta <ArrowRight size={18} /></Link></div><div className="unified-cta__art" aria-hidden="true"><span>W</span><i /><i /><i /></div></section>
   </main></>;
 }
 
+function initials(value: string) { return value.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
 function number(value: number) { return new Intl.NumberFormat('it-IT').format(value); }
-function date(value: string) { return new Intl.DateTimeFormat('it-IT', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}).format(new Date(value)); }
