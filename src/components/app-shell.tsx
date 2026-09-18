@@ -29,14 +29,16 @@ type NavigationLink = {
   children?: Array<{href: string; label: string; icon: typeof Home}>;
 };
 
-const clientLinks: NavigationLink[] = [
+function getClientLinks(notificationCounts: AdminNotificationCounts): NavigationLink[] {
+  return [
   {href: '/dashboard', label: 'Dashboard', icon: Home, section: 'PROGRAMMA'},
   {href: '/dashboard/crediti', label: 'Crediti', icon: CreditCard},
-  {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: 2},
+  {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: notificationCounts.requests || undefined},
   {href: '/dashboard/ordini', label: 'Ordini', icon: PackageCheck},
   {href: '/dashboard/supporto', label: 'Supporto', icon: Headphones},
   {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb},
-];
+  ];
+}
 
 const graphicLinks: NavigationLink[] = [
   {href: '/operatore', label: 'Panoramica', icon: ChartNoAxesCombined},
@@ -60,7 +62,7 @@ export type AdminNotificationCounts = {requests: number; feedback: number};
 export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName, isAdministrator = false}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string; isAdministrator?: boolean}) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = mode === 'admin' ? getAdminLinks(notificationCounts, isAdministrator) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : clientLinks;
+  const links = mode === 'admin' ? getAdminLinks(notificationCounts, isAdministrator) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : getClientLinks(notificationCounts);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
@@ -100,8 +102,8 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
           })}
         </nav>
         <div className="sidebar-profile">
-          <span className="avatar">{mode === 'admin' ? initials(isAdministrator ? 'Amministrazione' : operatorName || 'Operatore') : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : 'SL'}</span>
-          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? isAdministrator ? 'Amministrazione' : operatorName || 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : 'Studio Lombardi'}</strong><small>{mode === 'admin' ? isAdministrator ? 'Accesso completo' : 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Piano Business attivo'}</small></span>
+          <span className="avatar">{mode === 'admin' ? initials(isAdministrator ? 'Amministrazione' : operatorName || 'Operatore') : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : initials(operatorName || 'Cliente')}</span>
+          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? isAdministrator ? 'Amministrazione' : operatorName || 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : operatorName || 'Area cliente'}</strong><small>{mode === 'admin' ? isAdministrator ? 'Accesso completo' : 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Accesso cliente'}</small></span>
           <button
             aria-label="Esci da WOWPRO"
             className="sign-out-button"
