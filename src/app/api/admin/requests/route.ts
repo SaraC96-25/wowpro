@@ -27,8 +27,8 @@ export async function POST(request: Request) {
   try {
     const admin = createAdminClient();
     if (parsed.data.assignedTo) {
-      const {data: graphicOperator} = await admin.from('profiles').select('id').eq('id', parsed.data.assignedTo).eq('role', 'graphic_operator').eq('status', 'active').maybeSingle();
-      if (!graphicOperator) return NextResponse.json({error: 'Operatore grafico non valido.'}, {status: 400});
+      const {data: graphicOperator} = await admin.from('profiles').select('id,role,status').eq('id', parsed.data.assignedTo).maybeSingle();
+      if (!graphicOperator || graphicOperator.role !== 'graphic_operator' || graphicOperator.status !== 'active') return NextResponse.json({error: 'Operatore grafico non valido.'}, {status: 400});
     }
     const {data: company, error: companyError} = await admin
       .from('companies')

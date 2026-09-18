@@ -16,13 +16,13 @@ export default async function AdminPage() {
     listWowproClients(),
     admin.from('graphic_requests').select('id,public_id,title,status,created_at,completed_at,assigned_to,due_date,companies(name)').order('created_at', {ascending: false}),
     admin.from('credit_transactions').select('id,amount,created_at').order('created_at', {ascending: false}),
-    admin.from('profiles').select('id,full_name,email,role').in('role', ['admin', 'staff', 'graphic_operator']).eq('status', 'active').order('full_name'),
+    admin.from('profiles').select('id,full_name,email,role').eq('status', 'active').order('full_name'),
     admin.from('subscriptions').select('status,plans(monthly_price_cents)').eq('status', 'active'),
   ]);
   const clients = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
   const requests = rowsFrom(requestsResult);
   const credits = rowsFrom(creditsResult);
-  const members = rowsFrom(teamResult).map((member) => ({id: member.id, name: member.full_name || member.email, role: member.role} as TeamMember));
+  const members = rowsFrom(teamResult).filter((member) => ['admin', 'staff', 'graphic_operator'].includes(String(member.role))).map((member) => ({id: String(member.id), name: String(member.full_name || member.email), role: String(member.role)} as TeamMember));
   const subscriptions = rowsFrom(subscriptionsResult);
   const activeClients = clients.filter(({fields}) => !fields.archiviato && fields.stato_abbonamento?.toLocaleLowerCase('it-IT') === 'attivo').length;
   const openRequests = requests.filter((request) => request.status === 'new' || request.status === 'in_progress');
