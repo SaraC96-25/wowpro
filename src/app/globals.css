@@ -182,6 +182,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .empty-card p { color: var(--muted); line-height: 1.6; }.empty-card .button { margin-top: 12px; }
 .empty-card--section { max-width: none; min-height: 320px; display: grid; place-content: center; justify-items: center; }
 
+.unified-hero__art > img { object-fit: contain; object-position: center; }
+
 @media (max-width: 1050px) {
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .team-overview { grid-template-columns: repeat(2, 1fr); }
