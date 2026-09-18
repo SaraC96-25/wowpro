@@ -19,7 +19,7 @@ export function LoginForm() {
         email: email.trim(),
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
+          emailRedirectTo: `${origin}/auth/callback?next=/dashboard/home`,
         },
       });
       if (error) throw error;

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const requestedNext = url.searchParams.get('next');
   const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//')
     ? requestedNext
-    : '/dashboard';
+    : '/dashboard/home';
 
   if (code) {
     const supabase = await createClient();
