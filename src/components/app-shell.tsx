@@ -60,7 +60,7 @@ function getAdminLinks(notificationCounts: AdminNotificationCounts, isAdministra
 
 export type AdminNotificationCounts = {requests: number; feedback: number};
 
-export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName, isAdministrator = false}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string; isAdministrator?: boolean}) {
+export function AppShell({mode, children, notificationCounts = {requests: 0, feedback: 0}, operatorName, isAdministrator = false, subscription}: {mode: ShellMode; children: React.ReactNode; notificationCounts?: AdminNotificationCounts; operatorName?: string; isAdministrator?: boolean; subscription?: {plan: string; monthlyCredits: number; renewalDate: string; status: string}}) {
   const pathname = usePathname();
   const router = useRouter();
   const links = mode === 'admin' ? getAdminLinks(notificationCounts, isAdministrator) : mode === 'graphic' ? graphicLinks.map((link) => link.href === '/operatore/richieste' ? {...link, count: notificationCounts.requests || undefined} : link) : getClientLinks(notificationCounts);
@@ -102,19 +102,22 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
             );
           })}
         </nav>
-        <div className="sidebar-profile">
-          <span className="avatar">{mode === 'admin' ? initials(isAdministrator ? 'Amministrazione' : operatorName || 'Operatore') : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : initials(operatorName || 'Cliente')}</span>
-          <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? isAdministrator ? 'Amministrazione' : operatorName || 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : operatorName || 'Area cliente'}</strong><small>{mode === 'admin' ? isAdministrator ? 'Accesso completo' : 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Accesso cliente'}</small></span>
-          <button
-            aria-label="Esci da WOWPRO"
-            className="sign-out-button"
-            disabled={isSigningOut}
-            onClick={signOut}
-            title="Esci"
-            type="button"
-          >
-            <LogOut size={16} />
-          </button>
+        <div className="sidebar-bottom">
+          {mode === 'client' && subscription ? <div className="sub-card"><div className="sub-card__top"><span className="sub-dot" /><span className="sub-card__status">Abbonamento {subscription.status.toLowerCase()}</span></div><p className="sub-card__plan">Piano <b>{subscription.plan}</b><br />{subscription.monthlyCredits ? `${number(subscription.monthlyCredits)} crediti / mese inclusi` : 'Crediti mensili da configurare'}</p><div className="sub-card__renew"><span>Rinnovo</span><b>{subscription.renewalDate ? date(subscription.renewalDate) : 'Da configurare'}</b></div></div> : null}
+          <div className="sidebar-profile">
+            <span className="avatar">{mode === 'admin' ? initials(isAdministrator ? 'Amministrazione' : operatorName || 'Operatore') : mode === 'graphic' ? initials(operatorName || 'Operatore Grafico') : initials(operatorName || 'Cliente')}</span>
+            <span className="sidebar-profile__copy"><strong>{mode === 'admin' ? isAdministrator ? 'Amministrazione' : operatorName || 'Operatore WOWPRO' : mode === 'graphic' ? operatorName || 'Operatore Grafico' : operatorName || 'Area cliente'}</strong><small>{mode === 'admin' ? isAdministrator ? 'Accesso completo' : 'Team commerciale' : mode === 'graphic' ? 'Operatore grafico' : 'Accesso cliente'}</small></span>
+            <button
+              aria-label="Esci da WOWPRO"
+              className="sign-out-button"
+              disabled={isSigningOut}
+              onClick={signOut}
+              title="Esci"
+              type="button"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </aside>
       <div className="app-main">{children}</div>
@@ -123,6 +126,8 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
 }
 
 function initials(value: string) { return value.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
+function number(value: number) { return new Intl.NumberFormat('it-IT').format(value); }
+function date(value: string) { return new Intl.DateTimeFormat('it-IT', {day: 'numeric', month: 'long', year: 'numeric'}).format(new Date(`${value}T12:00:00`)); }
 
 export function PageHeader({eyebrow, title, action}: {eyebrow: string; title: string; action?: React.ReactNode}) {
   return (
