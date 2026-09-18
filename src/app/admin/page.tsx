@@ -1,87 +1,93 @@
 import Link from 'next/link';
-import {ArrowUpRight, BadgeEuro, Clock3, Coins, MessageSquareText, Plus, UsersRound} from 'lucide-react';
+import {ArrowUpRight, BadgeEuro, Euro, MessageSquareText, UsersRound} from 'lucide-react';
 
 import {PageHeader} from '@/components/app-shell';
-import {listWowproClients} from '@/lib/integrations/airtable';
-import {createAdminClient} from '@/lib/supabase/admin.server';
 import {requireProfile} from '@/lib/auth';
+import {listWowproClients, type AirtableWowproClient} from '@/lib/integrations/airtable';
+import {createAdminClient} from '@/lib/supabase/admin.server';
 
-type Activity = {id: string; title: string; note: string; value: string; tone: 'green' | 'violet' | 'blue' | 'amber'; href: string; createdAt: string};
+type TeamMember = {id: string; name: string; role: string};
+type DataRow = Record<string, unknown>;
 
 export default async function AdminPage() {
   const profile = await requireProfile(['staff', 'admin']);
-  const isAdministrator = profile.role === 'admin';
   const admin = createAdminClient();
-  const [clientsResult, requestsResult, creditsResult, teamResult] = await Promise.allSettled([
+  const [clientsResult, requestsResult, creditsResult, teamResult, subscriptionsResult] = await Promise.allSettled([
     listWowproClients(),
-    admin.from('graphic_requests').select('id,public_id,title,status,created_at,assigned_to,companies(name)').order('created_at', {ascending: false}),
-    admin.from('credit_transactions').select('id,amount,description,created_at,companies(name)').order('created_at', {ascending: false}),
-    isAdministrator ? admin.from('profiles').select('id,role,status').in('role', ['admin', 'staff', 'graphic_operator']) : Promise.resolve({data: [], error: null}),
+    admin.from('graphic_requests').select('id,public_id,title,status,created_at,completed_at,assigned_to,due_date,companies(name)').order('created_at', {ascending: false}),
+    admin.from('credit_transactions').select('id,amount,created_at').order('created_at', {ascending: false}),
+    admin.from('profiles').select('id,full_name,email,role').in('role', ['admin', 'staff', 'graphic_operator']).eq('status', 'active').order('full_name'),
+    admin.from('subscriptions').select('status,plans(monthly_price_cents)').eq('status', 'active'),
   ]);
   const clients = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
-  const requestRows = requestsResult.status === 'fulfilled' && !requestsResult.value.error ? requestsResult.value.data || [] : [];
-  const creditRows = creditsResult.status === 'fulfilled' && !creditsResult.value.error ? creditsResult.value.data || [] : [];
-  const teamMembers = teamResult.status === 'fulfilled' && !teamResult.value.error ? teamResult.value.data || [] : [];
+  const requests = rowsFrom(requestsResult);
+  const credits = rowsFrom(creditsResult);
+  const members = rowsFrom(teamResult).map((member) => ({id: member.id, name: member.full_name || member.email, role: member.role} as TeamMember));
+  const subscriptions = rowsFrom(subscriptionsResult);
   const activeClients = clients.filter(({fields}) => !fields.archiviato && fields.stato_abbonamento?.toLocaleLowerCase('it-IT') === 'attivo').length;
-  const openRequests = requestRows.filter((request) => request.status === 'new' || request.status === 'in_progress');
-  const inProgressRequests = requestRows.filter((request) => request.status === 'in_progress');
-  const currentMonthCredits = creditRows.filter((transaction) => isCurrentMonth(transaction.created_at)).reduce((total, transaction) => total + transaction.amount, 0);
-  const activities = [...requestRows.map(toRequestActivity), ...creditRows.map(toCreditActivity)].sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt)).slice(0, 6);
-  const hasDataError = clientsResult.status === 'rejected' || requestsResult.status === 'rejected' || creditsResult.status === 'rejected' || teamResult.status === 'rejected' || (requestsResult.status === 'fulfilled' && Boolean(requestsResult.value.error)) || (creditsResult.status === 'fulfilled' && Boolean(creditsResult.value.error)) || (teamResult.status === 'fulfilled' && Boolean(teamResult.value.error));
+  const openRequests = requests.filter((request) => request.status === 'new' || request.status === 'in_progress');
+  const inProgress = requests.filter((request) => request.status === 'in_progress').length;
+  const loadedCredits = credits.filter((credit) => isCurrentMonth(String(credit.created_at))).reduce((total, credit) => total + Number(credit.amount || 0), 0);
+  const mrr = subscriptions.reduce((total, subscription) => total + planPrice(subscription.plans), 0);
 
-  return <>
-    <PageHeader eyebrow={isAdministrator ? 'WowStampa · Amministrazione' : 'WowStampa · Programma WOWPRO'} title={isAdministrator ? 'Panoramica amministrazione' : 'Panoramica'} />
-    <main className="page-content">
-      {hasDataError ? <p className="overview-notice">Alcuni dati non sono momentaneamente disponibili. I moduli operativi restano accessibili.</p> : null}
-      <section className="metric-grid">
-        <Metric icon={<UsersRound />} label="Clienti attivi" note={`su ${clients.filter(({fields}) => !fields.archiviato).length} in gestione`} value={String(activeClients)} />
-        <Metric icon={<MessageSquareText />} label="Richieste aperte" note={`${inProgressRequests.length} in lavorazione`} tone="amber" value={String(openRequests.length)} />
-        <Metric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" tone="violet" value={formatNumber(currentMonthCredits)} />
-        <Metric icon={<Coins />} label="Movimenti crediti" note="registrati nel mese" tone="blue" value={String(creditRows.filter((transaction) => isCurrentMonth(transaction.created_at)).length)} />
-      </section>
-
-      {isAdministrator ? <section><div className="section-title"><div><span className="eyebrow">SITUAZIONE TEAM</span><h2>Come lavora il team</h2></div><Link className="button button--ghost" href="/admin/team-ruoli">Gestisci team <ArrowUpRight size={15} /></Link></div><div className="team-overview"><TeamOverviewCard label="Amministrazione" note="accesso completo" value={teamMembers.filter((member) => member.role === 'admin' && member.status === 'active').length} /><TeamOverviewCard label="Commerciale" note="operatori attivi" value={teamMembers.filter((member) => member.role === 'staff' && member.status === 'active').length} tone="blue" /><TeamOverviewCard label="Grafico" note={`${requestRows.filter((request) => request.assigned_to).length} richieste assegnate`} value={teamMembers.filter((member) => member.role === 'graphic_operator' && member.status === 'active').length} tone="violet" /><TeamOverviewCard label="Da assegnare" note="richieste senza grafico" value={requestRows.filter((request) => !request.assigned_to && (request.status === 'new' || request.status === 'in_progress')).length} tone="amber" /></div></section> : null}
-
-      <section>
-        <div className="section-title"><div><span className="eyebrow">ATTIVITÀ RECENTE</span><h2>Cosa sta succedendo</h2></div><Link className="button button--ghost" href="/admin/richieste">Tutte le richieste <ArrowUpRight size={15} /></Link></div>
-        <div className="activity-card">
-          {activities.map((activity) => <Link className="activity-row activity-row--link" href={activity.href} key={activity.id}><span className={`activity-icon activity-icon--${activity.tone}`}><Clock3 size={17} /></span><span><strong>{activity.title}</strong><small>{activity.note}</small></span><b className={activity.value.startsWith('+') ? 'positive' : ''}>{activity.value}</b></Link>)}
-          {!activities.length ? <div className="activity-empty"><Clock3 size={20} /><strong>Nessuna attività registrata</strong><span>Nuove richieste e accrediti compariranno qui.</span></div> : null}
-        </div>
-      </section>
-
-      <section>
-        <div className="section-title"><div><span className="eyebrow">ACCESSI RAPIDI</span><h2>Gestione operativa</h2></div></div>
-        <div className="quick-grid">
-          <Link className="quick-card" href="/admin/richieste"><span><Plus size={19} /></span><div><h3>Nuova richiesta</h3><p>Inserisci e assegna un nuovo lavoro grafico.</p></div><ArrowUpRight size={18} /></Link>
-          <Link className="quick-card" href="/admin/clienti"><span><UsersRound size={19} /></span><div><h3>Gestisci clienti</h3><p>Modifica anagrafica, piani e crediti.</p></div><ArrowUpRight size={18} /></Link>
-          <Link className="quick-card" href="/admin/crediti"><span><Coins size={19} /></span><div><h3>Registro crediti</h3><p>Consulta gli accrediti e i movimenti.</p></div><ArrowUpRight size={18} /></Link>
-        </div>
-      </section>
-    </main>
-  </>;
+  if (profile.role === 'admin') {
+    return <AdministrationDashboard activeClients={activeClients} clients={clients} credits={loadedCredits} inProgress={inProgress} members={members} mrr={mrr} openRequests={openRequests} requests={requests} />;
+  }
+  return <CommercialDashboard activeClients={activeClients} credits={loadedCredits} inProgress={inProgress} openRequests={openRequests.length} />;
 }
 
-function TeamOverviewCard({label, note, tone = 'green', value}: {label: string; note: string; tone?: string; value: number}) { return <article className="team-overview__card"><span className={`metric-icon metric-icon--${tone}`}><UsersRound /></span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
-
-function Metric({icon, label, note, tone = 'green', value}: {icon: React.ReactNode; label: string; note: string; tone?: string; value: string}) {
-  return <article className="metric-card"><span className={`metric-icon metric-icon--${tone}`}>{icon}</span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>;
+function AdministrationDashboard({activeClients, clients, credits, inProgress, members, mrr, openRequests, requests}: {activeClients: number; clients: Array<{fields: AirtableWowproClient}>; credits: number; inProgress: number; members: TeamMember[]; mrr: number; openRequests: DataRow[]; requests: DataRow[]}) {
+  const graphics = members.filter((member) => member.role === 'graphic_operator');
+  const commercials = members.filter((member) => member.role === 'staff');
+  const completedRecently = requests.filter((request) => request.status === 'completed' && isRecent(String(request.completed_at || request.created_at))).length;
+  const overdue = requests.find(isOverdue);
+  return <><PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Panoramica" /><main className="page-content administration-page">
+    <section className="admin-welcome"><div><h2>{greeting()} <span aria-hidden="true">👋</span></h2><p>{completedRecently ? 'Il team ha completato ' + completedRecently + ' richieste di recente.' : 'Tieni sotto controllo il lavoro del team e le prossime assegnazioni.'}</p><div className="admin-welcome__chips"><span>🎉 {completedRecently} richieste completate di recente</span>{overdue ? <Link className="admin-welcome__alert" href="/admin/richieste">⏰ In ritardo: {String(overdue.title)} · {formatDate(String(overdue.due_date))}</Link> : null}</div></div><small>{formatTime(new Date())} · Aggiornato ora</small></section>
+    <section className="metric-grid administration-kpis">
+      <Metric icon={<UsersRound />} label="Clienti attivi" note={'su ' + clients.filter(({fields}) => !fields.archiviato).length + ' totali'} value={String(activeClients)} />
+      <Metric icon={<MessageSquareText />} label="Richieste aperte" note={inProgress + ' in lavorazione'} tone="amber" value={String(openRequests.length)} />
+      <Metric icon={<BadgeEuro />} label="Crediti caricati nel mese" note="su lavorazioni grafiche" tone="violet" value={formatNumber(credits)} />
+      <Metric icon={<Euro />} label="MRR ricorrente" note={mrr ? 'abbonamenti attivi' : 'piani da valorizzare'} tone="blue" value={mrr ? formatCurrency(mrr) : '—'} />
+    </section>
+    <section><div className="administration-title"><div><h2>Come lavora il team</h2><p>Chi è carico, chi è in difficoltà e a chi assegnare il prossimo lavoro</p></div><span>Situazione attuale</span></div><GraphicTeam members={graphics} requests={requests} /><CommercialTeam clients={clients} members={commercials} openRequests={openRequests.length} /></section>
+  </main></>;
 }
 
-function toRequestActivity(request: {id: string; public_id: string; title: string; status: string; created_at: string; companies: unknown}): Activity {
-  return {id: `request-${request.id}`, title: request.title, note: `${companyName(request.companies)} · ${requestStatusLabel(request.status)}`, value: request.public_id, tone: request.status === 'in_progress' ? 'amber' : 'blue', href: '/admin/richieste', createdAt: request.created_at};
+function GraphicTeam({members, requests}: {members: TeamMember[]; requests: DataRow[]}) {
+  const assigned = requests.filter((request) => Boolean(request.assigned_to)).length;
+  const working = requests.filter((request) => request.status === 'in_progress' && request.assigned_to).length;
+  const delayed = requests.filter(isOverdue).length;
+  return <section className="team-panel"><div className="team-panel__title"><h3>Team Grafico</h3><span>{assigned} assegnate · {working} in lavorazione · {delayed} in ritardo</span></div><div className="graphic-team-head"><span>Operatore</span><span>Carico</span><span>In corso</span><span>Completate</span><span>Ritardi</span><span>Disponibilità</span></div>{members.map((member) => <GraphicRow key={member.id} member={member} requests={requests} />)}{!members.length ? <p className="client-list__empty">Nessun operatore grafico attivo. Aggiungilo in Team & ruoli.</p> : null}</section>;
 }
 
-function toCreditActivity(transaction: {id: string; amount: number; description: string; created_at: string; companies: unknown}): Activity {
-  return {id: `credit-${transaction.id}`, title: 'Accredito crediti', note: `${companyName(transaction.companies)} · ${transaction.description}`, value: `+${formatNumber(transaction.amount)}`, tone: 'violet', href: '/admin/crediti', createdAt: transaction.created_at};
+function GraphicRow({member, requests}: {member: TeamMember; requests: DataRow[]}) {
+  const assigned = requests.filter((request) => request.assigned_to === member.id);
+  const load = Math.min(assigned.filter((request) => request.status === 'new' || request.status === 'in_progress').length, 5);
+  const working = assigned.filter((request) => request.status === 'in_progress').length;
+  const completed = assigned.filter((request) => request.status === 'completed').length;
+  const delayed = assigned.filter(isOverdue).length;
+  return <article className="graphic-team-row"><OperatorName member={member} /><div><strong>{load} / 5</strong><span className="load-meter"><i className={load >= 4 ? 'load-meter--amber' : ''} style={{width: String(load * 20) + '%'}} /></span></div><strong>{working}</strong><strong>{completed}</strong><span className={delayed ? 'delay-pill' : 'delay-pill delay-pill--none'}>{delayed || '—'}</span><strong className={load >= 4 ? 'availability availability--busy' : 'availability'}>{load >= 4 ? 'Quasi piena' : 'Carico regolare'}</strong></article>;
 }
 
-function companyName(value: unknown) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'Cliente WOWPRO';
-  const name = (value as Record<string, unknown>).name;
-  return typeof name === 'string' && name.trim() ? name : 'Cliente WOWPRO';
+function CommercialTeam({clients, members, openRequests}: {clients: Array<{fields: AirtableWowproClient}>; members: TeamMember[]; openRequests: number}) {
+  return <section className="team-panel"><div className="team-panel__title"><h3>Team Commerciale</h3><span>{clients.length} clienti gestiti · {openRequests} richieste aperte</span></div><div className="commercial-team-head"><span>Operatore</span><span>Clienti</span><span>Aperte</span><span>Da seguire</span></div>{members.map((member) => { const clientsCount = clients.filter(({fields}) => fields.account_manager_nome?.trim().toLocaleLowerCase('it-IT') === member.name.trim().toLocaleLowerCase('it-IT')).length; return <article className="commercial-team-row" key={member.id}><OperatorName member={member} /><strong>{clientsCount}</strong><strong>—</strong><span className="delay-pill delay-pill--none">—</span></article>; })}{!members.length ? <p className="client-list__empty">Nessun operatore commerciale attivo.</p> : null}</section>;
 }
 
-function requestStatusLabel(status: string) { return ({new: 'Nuova', in_progress: 'In lavorazione', completed: 'Completata', rejected: 'Rifiutata'} as Record<string, string>)[status] || 'Aggiornata'; }
+function OperatorName({member}: {member: TeamMember}) { return <div className="operator-name"><span>{initials(member.name)}</span><div><strong>{member.name}</strong><small>{member.role === 'graphic_operator' ? 'Operatore Grafico' : 'Operatore Commerciale'}</small></div></div>; }
+
+function CommercialDashboard({activeClients, credits, inProgress, openRequests}: {activeClients: number; credits: number; inProgress: number; openRequests: number}) {
+  return <><PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Panoramica" /><main className="page-content"><section className="metric-grid"><Metric icon={<UsersRound />} label="Clienti attivi" note="gestione operativa" value={String(activeClients)} /><Metric icon={<MessageSquareText />} label="Richieste aperte" note={inProgress + ' in lavorazione'} tone="amber" value={String(openRequests)} /><Metric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" tone="violet" value={formatNumber(credits)} /><Metric icon={<ArrowUpRight />} label="Gestione team" note="accesso riservato all’amministrazione" tone="blue" value="—" /></section></main></>;
+}
+
+function Metric({icon, label, note, tone = 'green', value}: {icon: React.ReactNode; label: string; note: string; tone?: string; value: string}) { return <article className="metric-card"><span className={'metric-icon metric-icon--' + tone}>{icon}</span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
+function rowsFrom(result: unknown): DataRow[] { if (!result || typeof result !== 'object') return []; const settled = result as {status?: string; value?: {data?: DataRow[] | null; error?: unknown}}; const value = settled.value; return settled.status === 'fulfilled' && value && !value.error ? value.data || [] : []; }
+function planPrice(value: unknown) { if (!value || typeof value !== 'object' || Array.isArray(value)) return 0; const cents = (value as Record<string, unknown>).monthly_price_cents; return typeof cents === 'number' ? cents : 0; }
 function isCurrentMonth(value: string) { const date = new Date(value); const today = new Date(); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }
+function isRecent(value: string) { return Date.now() - Date.parse(value) < 7 * 24 * 60 * 60 * 1000; }
+function isOverdue(request: DataRow) { return Boolean(request.due_date) && Date.parse(String(request.due_date)) < Date.now() && !['completed', 'rejected'].includes(String(request.status)); }
+function greeting() { const hour = new Date().getHours(); return hour < 12 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera'; }
+function formatDate(value: string) { return new Intl.DateTimeFormat('it-IT', {day: '2-digit', month: 'short', year: 'numeric'}).format(new Date(value)); }
+function formatTime(value: Date) { return new Intl.DateTimeFormat('it-IT', {hour: '2-digit', minute: '2-digit'}).format(value); }
 function formatNumber(value: number) { return new Intl.NumberFormat('it-IT').format(value); }
+function formatCurrency(value: number) { return new Intl.NumberFormat('it-IT', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}).format(value / 100); }
+function initials(value: string) { return value.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
