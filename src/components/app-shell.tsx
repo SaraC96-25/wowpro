@@ -25,11 +25,12 @@ type NavigationLink = {
   icon: typeof Home;
   count?: number;
   section?: string;
+  separated?: boolean;
   children?: Array<{href: string; label: string; icon: typeof Home}>;
 };
 
 const clientLinks: NavigationLink[] = [
-  {href: '/dashboard', label: 'Dashboard', icon: Home},
+  {href: '/dashboard', label: 'Dashboard', icon: Home, section: 'PROGRAMMA'},
   {href: '/dashboard/crediti', label: 'Crediti', icon: CreditCard},
   {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: 2},
   {href: '/dashboard/ordini', label: 'Ordini', icon: PackageCheck},
@@ -39,16 +40,16 @@ const clientLinks: NavigationLink[] = [
 
 const graphicLinks: NavigationLink[] = [
   {href: '/operatore', label: 'Panoramica', icon: ChartNoAxesCombined},
-  {href: '/operatore/richieste', label: 'Richieste', icon: MessageSquareText},
+  {href: '/operatore/richieste', label: 'Richieste', icon: MessageSquareText, section: 'GESTIONE', separated: true},
 ];
 
 function getAdminLinks(notificationCounts: AdminNotificationCounts, isAdministrator: boolean): NavigationLink[] {
   const links: NavigationLink[] = [
   {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
-  {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
+  {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, section: 'GESTIONE', separated: true, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
   {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: notificationCounts.requests || undefined},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
-  {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: notificationCounts.feedback || undefined},
+  {href: '/admin/feedback', label: 'Feedback & idee', icon: Lightbulb, count: notificationCounts.feedback || undefined, section: 'COMMUNITY'},
   ];
   if (isAdministrator) links.push({href: '/admin/team-ruoli', label: 'Team & ruoli', icon: UsersRound, section: 'AMMINISTRAZIONE'});
   return links;
@@ -78,13 +79,12 @@ export function AppShell({mode, children, notificationCounts = {requests: 0, fee
           <span><strong>WOWPRO</strong><small>{mode === 'admin' ? 'back-office · WowStampa' : mode === 'graphic' ? 'operatore grafico · WowStampa' : 'by WowStampa'}</small></span>
         </div>
         {mode === 'admin' ? <div className="internal-pill">PANNELLO INTERNO</div> : mode === 'graphic' ? <div className="internal-pill">ACCESSO OPERATORE GRAFICO</div> : null}
-        <span className="nav-label">{mode === 'admin' || mode === 'graphic' ? 'GESTIONE' : 'PROGRAMMA'}</span>
         <nav className="nav-list">
-          {links.map(({href, label, icon: Icon, count, children, section}) => {
+          {links.map(({href, label, icon: Icon, count, children, section, separated}) => {
             const childIsActive = children?.some((child) => pathname === child.href || pathname.startsWith(`${child.href}/`));
             const active = Boolean(childIsActive) || href === pathname || (href !== '/admin' && href !== '/dashboard' && pathname.startsWith(href));
             return (
-              <div className="nav-group" key={href}>
+              <div className={separated ? 'nav-group nav-group--separated' : 'nav-group'} key={href}>
                 {section ? <span className="nav-label nav-label--section">{section}</span> : null}
                 <Link href={href} className={active ? 'nav-link nav-link--active' : 'nav-link'}>
                   <Icon size={18} />

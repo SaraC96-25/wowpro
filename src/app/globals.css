@@ -66,6 +66,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav-label--section { margin: 17px 12px 5px; }
 .nav-list { display: grid; gap: 5px; }
 .nav-group { display: grid; gap: 4px; }
+.nav-group--separated { margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a3343; }
 .nav-link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 13px; border: 1px solid transparent; border-radius: 12px; font-size: 14px; font-weight: 700; transition: .18s ease; }
 .nav-link:hover { color: #dce4ea; background: rgba(255,255,255,.04); }
 .nav-link--active { color: white; border-color: rgba(25,187,99,.42); background: rgba(15,83,60,.38); }
