@@ -1,5 +1,7 @@
 import 'server-only';
 
+import {revalidateTag, unstable_cache} from 'next/cache';
+
 export type AirtableRecord<T> = {id: string; fields: T};
 
 export type AirtableWowproClient = {
@@ -32,6 +34,10 @@ function getAirtableConfig() {
 }
 
 export async function listWowproClients() {
+  return await cachedWowproClients();
+}
+
+async function readWowproClients() {
   const {token, baseId, table} = getAirtableConfig();
   const records: AirtableRecord<AirtableWowproClient>[] = [];
   let offset: string | undefined;
@@ -41,10 +47,7 @@ export async function listWowproClients() {
     url.searchParams.set('pageSize', '100');
     if (offset) url.searchParams.set('offset', offset);
 
-    const response = await fetch(url, {
-      headers: {Authorization: `Bearer ${token}`},
-      cache: 'no-store',
-    });
+    const response = await fetch(url, {headers: {Authorization: `Bearer ${token}`}, cache: 'no-store', signal: AbortSignal.timeout(10_000)});
     if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);
 
     const payload = await response.json() as AirtableResponse;
@@ -56,6 +59,10 @@ export async function listWowproClients() {
 }
 
 export async function getWowproClient(recordId: string) {
+  return await cachedWowproClient(recordId);
+}
+
+async function readWowproClient(recordId: string) {
   const {token, baseId, table} = getAirtableConfig();
   const response = await fetch(
     `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`,
@@ -81,10 +88,18 @@ export async function updateWowproClient(recordId: string, fields: Partial<Airta
     },
   );
   if (!response.ok) throw new Error(`Airtable ha risposto con stato ${response.status}.`);
-  return await response.json() as AirtableRecord<AirtableWowproClient>;
+  const record = await response.json() as AirtableRecord<AirtableWowproClient>;
+  // Credit and client updates must be reflected immediately after a successful write.
+  revalidateTag('airtable-wowpro-clients', 'max');
+  return record;
 }
 
 export async function listAuthorizedWowproClients() {
   const records = await listWowproClients();
   return records.filter(({fields}) => fields.stato_abbonamento?.toLowerCase() === 'attivo');
 }
+
+// Airtable is the slowest dependency in the navigation path. A short shared cache
+// keeps page changes responsive while mutations above explicitly invalidate it.
+const cachedWowproClients = unstable_cache(readWowproClients, ['airtable-wowpro-clients-list'], {revalidate: 60, tags: ['airtable-wowpro-clients']});
+const cachedWowproClient = unstable_cache(readWowproClient, ['airtable-wowpro-client'], {revalidate: 60, tags: ['airtable-wowpro-clients']});
