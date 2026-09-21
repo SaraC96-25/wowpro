@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {BadgeCheck, CirclePlus, CreditCard, Info, Pencil, Sparkles} from 'lucide-react';
 
 import {PageHeader} from '@/components/app-shell';
+import {ClientRequestsWorkspace} from '@/components/client-requests-workspace';
 import {requireProfile} from '@/lib/auth';
 import {getWowproClient} from '@/lib/integrations/airtable';
 import {createClient} from '@/lib/supabase/server';
@@ -37,7 +38,7 @@ async function CreditsPage() {
 async function RequestsPage() {
   await requireProfile(['client']);
   const supabase = await createClient();
-  const {data: requests} = await supabase.from('graphic_requests').select('id,public_id,title,brief,status,created_at').order('created_at', {ascending: false});
+  const {data: requests} = await supabase.from('graphic_requests').select('id,public_id,title,brief,status,type,credit_cost,created_at').order('created_at', {ascending: false});
   const requestIds = (requests || []).map((request) => request.id);
   const messagesByRequest = new Map<string, Array<{id: string; body: string; created_at: string}>>();
   if (requestIds.length) {
@@ -45,11 +46,10 @@ async function RequestsPage() {
     const {data: messages, error} = await supabase.from('request_messages').select('id,request_id,body,created_at').in('request_id', requestIds).order('created_at', {ascending: true});
     if (!error) for (const message of messages || []) messagesByRequest.set(message.request_id, [...(messagesByRequest.get(message.request_id) || []), message]);
   }
-  return <><PageHeader eyebrow="WOWPRO · Area cliente" title="Richieste grafiche" /><main className="page-content"><section className="client-request-list">{(requests || []).map((request) => { const messages = messagesByRequest.get(request.id) || []; return <article className="client-request-card" key={request.id}><div><span className="admin-row__id">{request.public_id}</span><h2>{request.title}</h2><p>{request.brief}</p><span className={'feedback-status feedback-status--' + statusClass(request.status)}>{status(request.status)}</span></div><aside><span className="eyebrow">MESSAGGI DAL TEAM</span>{messages.length ? messages.map((message) => <div className="message-bubble" key={message.id}><small>{date(message.created_at)}</small><p>{message.body}</p></div>) : <p>Nessun messaggio dal team.</p>}</aside></article>; })}{!requests?.length ? <section className="empty-card empty-card--section"><span className="eyebrow">NESSUNA RICHIESTA</span><h2>Non hai richieste attive</h2><p>Le richieste gestite dal team compariranno qui.</p></section> : null}</section></main></>;
+  const workspaceRequests = (requests || []).map((request) => ({id: request.id, publicId: request.public_id, title: request.title, brief: request.brief, status: request.status, type: request.type, creditCost: request.credit_cost, createdAt: request.created_at, messages: (messagesByRequest.get(request.id) || []).map((message) => ({id: message.id, body: message.body, createdAt: message.created_at}))}));
+  return <><PageHeader eyebrow="WOWPRO · Area cliente" title="Richieste grafiche" /><main className="page-content"><ClientRequestsWorkspace requests={workspaceRequests} /></main></>;
 }
 
 function Service({credits, icon, text, title}: {credits: string; icon: React.ReactNode; text: string; title: string}) { return <article><span>{icon}</span><h3>{title}</h3><p>{text}</p><div><strong>{credits}</strong><small>crediti</small></div></article>; }
 function number(value: number) { return new Intl.NumberFormat('it-IT').format(value); }
 function date(value: string) { return new Intl.DateTimeFormat('it-IT', {day: '2-digit', month: 'short', year: 'numeric'}).format(new Date(value)); }
-function status(value: string) { return ({new: 'Nuova', in_progress: 'In lavorazione', completed: 'Completata', rejected: 'Rifiutata'} as Record<string, string>)[value] || 'Aggiornata'; }
-function statusClass(value: string) { return value === 'in_progress' ? 'evaluating' : value === 'completed' ? 'completed' : value === 'rejected' ? 'rejected' : 'new'; }
