@@ -7,7 +7,6 @@ import {createAdminClient} from '@/lib/supabase/admin.server';
 
 const requestSchema = z.object({
   type: z.enum(['revision', 'modification', 'creation']),
-  title: z.string().trim().min(3).max(200),
   brief: z.string().trim().min(10).max(5_000),
 });
 
@@ -39,7 +38,7 @@ export async function POST(request: Request) {
       company_id: company.id,
       requested_by: profile.id,
       type: parsed.data.type,
-      title: parsed.data.title,
+      title: createTitle(parsed.data.type, parsed.data.brief),
       brief: parsed.data.brief,
       credit_cost: creditCost,
     }).select('id,public_id,title,brief,type,status,credit_cost,created_at').single();
@@ -78,4 +77,9 @@ function createPublicId() {
   const suffix = crypto.randomUUID().slice(0, 6).toUpperCase();
   const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
   return `RG-${date}-${suffix}`;
+}
+
+function createTitle(type: keyof typeof costs, brief: string) {
+  const label = {revision: 'Revisione', modification: 'Modifica', creation: 'Creazione'}[type];
+  return `${label}: ${brief.replace(/\s+/g, ' ').slice(0, 110)}`;
 }

@@ -36,9 +36,12 @@ async function CreditsPage() {
 }
 
 async function RequestsPage() {
-  await requireProfile(['client']);
+  const profile = await requireProfile(['client']);
   const supabase = await createClient();
   const {data: requests} = await supabase.from('graphic_requests').select('id,public_id,title,brief,status,type,credit_cost,created_at').order('created_at', {ascending: false});
+  let includedCredits = 0; let extraCredits = 0;
+  const {data: company} = await supabase.from('companies').select('airtable_record_id').eq('id', profile.company_id || '').maybeSingle();
+  if (company?.airtable_record_id) { try { const record = await getWowproClient(company.airtable_record_id); includedCredits = Number(record.fields.crediti_inclusi_residui || 0); extraCredits = Number(record.fields.crediti_extra_residui || 0); } catch { /* The request form will show an unavailable balance. */ } }
   const requestIds = (requests || []).map((request) => request.id);
   const messagesByRequest = new Map<string, Array<{id: string; body: string; created_at: string}>>();
   if (requestIds.length) {
@@ -47,7 +50,7 @@ async function RequestsPage() {
     if (!error) for (const message of messages || []) messagesByRequest.set(message.request_id, [...(messagesByRequest.get(message.request_id) || []), message]);
   }
   const workspaceRequests = (requests || []).map((request) => ({id: request.id, publicId: request.public_id, title: request.title, brief: request.brief, status: request.status, type: request.type, creditCost: request.credit_cost, createdAt: request.created_at, messages: (messagesByRequest.get(request.id) || []).map((message) => ({id: message.id, body: message.body, createdAt: message.created_at}))}));
-  return <><PageHeader eyebrow="WOWPRO · Area cliente" title="Richieste grafiche" /><main className="page-content"><ClientRequestsWorkspace requests={workspaceRequests} /></main></>;
+  return <><PageHeader eyebrow="WOWPRO · Area cliente" title="Richieste grafiche" action={<div className="credit-chip"><i /> <strong>{number(includedCredits + extraCredits)}</strong> crediti disponibili</div>} /><main className="page-content"><ClientRequestsWorkspace extraCredits={extraCredits} includedCredits={includedCredits} requests={workspaceRequests} /></main></>;
 }
 
 function Service({credits, icon, text, title}: {credits: string; icon: React.ReactNode; text: string; title: string}) { return <article><span>{icon}</span><h3>{title}</h3><p>{text}</p><div><strong>{credits}</strong><small>crediti</small></div></article>; }
