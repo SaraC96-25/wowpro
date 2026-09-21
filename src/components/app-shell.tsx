@@ -31,12 +31,12 @@ type NavigationLink = {
 
 function getClientLinks(notificationCounts: AdminNotificationCounts): NavigationLink[] {
   return [
-  {href: '/dashboard', label: 'Dashboard', icon: ChartNoAxesCombined, section: 'LAVORO'},
-  {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: notificationCounts.requests || undefined},
+  {href: '/dashboard', label: 'Dashboard', icon: ChartNoAxesCombined},
+  {href: '/dashboard/richieste', label: 'Richieste grafiche', icon: MessageSquareText, count: notificationCounts.requests || undefined, section: 'GESTIONE'},
   {href: '/dashboard/ordini', label: 'Ordini', icon: PackageCheck},
-  {href: '/dashboard/crediti', label: 'Crediti', icon: CreditCard, section: 'ACCOUNT'},
-  {href: '/dashboard/supporto', label: 'Supporto', icon: Headphones},
-  {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb},
+  {href: '/dashboard/crediti', label: 'Crediti', icon: CreditCard},
+  {href: '/dashboard/supporto', label: 'Supporto', icon: Headphones, section: 'SUPPORTO'},
+  {href: '/dashboard/feedback', label: 'Feedback & idee', icon: Lightbulb, section: 'COMMUNITY'},
   ];
 }
 
