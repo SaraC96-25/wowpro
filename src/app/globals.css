@@ -42,7 +42,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .input-wrap:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px rgba(25, 187, 99, .12); }
 .input-wrap input { width: 100%; border: 0; outline: 0; font-size: 16px; color: var(--ink); }
 .button { min-height: 44px; padding: 0 18px; border: 0; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-weight: 800; cursor: pointer; }
-.button--primary { background: var(--green); color: #04210f; box-shadow: var(--glow); }
+.button--primary { background: var(--green); color: white; box-shadow: var(--glow); }
 .button--primary:hover { background: #169f4e; box-shadow: var(--glow-strong); transform: translateY(-1px); }
 .button--ghost { border: 1px solid var(--line); background: white; color: #465164; box-shadow: 0 4px 14px rgba(20,36,50,.04); }
 .login-form .button { margin-top: 4px; height: 54px; }
