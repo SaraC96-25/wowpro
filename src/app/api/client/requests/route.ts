@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   if (profile.role !== 'client' || profile.status !== 'active' || !profile.company_id) return NextResponse.json({error: 'Accesso non autorizzato.'}, {status: 403});
 
   const parsed = requestSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({error: 'Completa correttamente tutti i campi.'}, {status: 400});
+  if (!parsed.success) return NextResponse.json({error: 'La descrizione della richiesta deve contenere almeno 10 caratteri.'}, {status: 400});
 
   try {
     const admin = createAdminClient();

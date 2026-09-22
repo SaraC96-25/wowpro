@@ -64,9 +64,11 @@ function CreateRequestModal({extraCredits, includedCredits, onClose, onCreated}:
   async function createRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const brief = String(form.get('brief') || '').trim();
+    if (brief.length < 10) { setError(`La descrizione deve contenere almeno 10 caratteri: ne mancano ${10 - brief.length}.`); return; }
     setError(''); setIsSaving(true);
     try {
-      const response = await fetch('/api/client/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type, brief: String(form.get('brief') || '')})});
+      const response = await fetch('/api/client/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({type, brief})});
       const result = await readResponse(response);
       if (!response.ok || !result.request) throw new Error(result.error || 'Creazione non riuscita.');
       onCreated({...result.request, messages: []});
@@ -83,7 +85,7 @@ function CreateRequestModal({extraCredits, includedCredits, onClose, onCreated}:
     <form onSubmit={createRequest}>
       <div className="client-request-modal__body">
         <fieldset className="service-picker"><legend>Tipo di servizio <b>*</b></legend>{(['revision', 'modification', 'creation'] as const).map((item) => <button aria-pressed={type === item} className={type === item ? 'is-selected' : ''} key={item} onClick={() => setType(item)} type="button"><span className="service-picker__check">{type === item ? <Check size={14} /> : null}</span><span>{requestType(item)}</span><small><b>{number({revision: 1_000, modification: 2_000, creation: 3_000}[item])}</b> crediti</small></button>)}</fieldset>
-        <label className="request-modal-field"><span>Descrizione della richiesta <b>*</b></span><textarea name="brief" placeholder="Es. Modificare il volantino A5 cambiando data e logo, mantenendo lo stesso stile..." required rows={5} /></label>
+        <label className="request-modal-field"><span>Descrizione della richiesta <b>*</b></span><textarea minLength={10} name="brief" placeholder="Es. Modificare il volantino A5 cambiando data e logo, mantenendo lo stesso stile..." required rows={5} /></label>
         <label className="request-modal-field">File di riferimento<input accept=".pdf,.ai,.psd,.jpg,.jpeg,.png" multiple onChange={selectFiles} type="file" /><span className="request-file-drop"><i><Upload size={19} /></i><strong>Trascina i file qui o <b>sfoglia</b></strong><small>PDF, AI, PSD, JPG, PNG · max 50 MB</small></span></label>
         {files.length ? <div className="request-file-list">{files.map((file) => <span key={`${file.name}-${file.lastModified}`}>{file.name}</span>)}</div> : null}
         <section className="request-credit-check"><h3>Verifica crediti in tempo reale</h3><div><span>Costo del servizio</span><b>−{number(creditCost)}</b></div><div><span>Disponibili ora <small>({number(includedCredits)} inclusi + {number(extraCredits)} extra)</small></span><b>{number(available)}</b></div><div className="request-credit-check__total"><span>Saldo dopo la richiesta</span><b className={after < 0 ? 'negative' : ''}>{number(Math.max(after, 0))}</b></div><p><Check size={15} /> {after >= 0 ? 'Crediti sufficienti per inviare la richiesta.' : 'Crediti insufficienti per questo servizio.'}</p></section>
