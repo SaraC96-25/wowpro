@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import {ArrowUpRight, BadgeEuro, Euro, MessageSquareText, UsersRound} from 'lucide-react';
+import {BadgeEuro, Check, CircleCheck, Clock3, Euro, ListTodo, MessageSquareText, UsersRound} from 'lucide-react';
 
 import {PageHeader} from '@/components/app-shell';
 import {requireProfile} from '@/lib/auth';
@@ -33,7 +33,7 @@ export default async function AdminPage() {
   if (profile.role === 'admin') {
     return <AdministrationDashboard activeClients={activeClients} clients={clients} credits={loadedCredits} inProgress={inProgress} members={members} mrr={mrr} openRequests={openRequests} requests={requests} />;
   }
-  return <CommercialDashboard activeClients={activeClients} credits={loadedCredits} inProgress={inProgress} openRequests={openRequests.length} />;
+  return <CommercialDashboard clients={clients} profile={profile} requests={requests} />;
 }
 
 function AdministrationDashboard({activeClients, clients, credits, inProgress, members, mrr, openRequests, requests}: {activeClients: number; clients: Array<{fields: AirtableWowproClient}>; credits: number; inProgress: number; members: TeamMember[]; mrr: number; openRequests: DataRow[]; requests: DataRow[]}) {
@@ -75,8 +75,32 @@ function CommercialTeam({clients, members, openRequests}: {clients: Array<{field
 
 function OperatorName({member}: {member: TeamMember}) { return <div className="operator-name"><span>{initials(member.name)}</span><div><strong>{member.name}</strong><small>{member.role === 'graphic_operator' ? 'Operatore Grafico' : 'Operatore Commerciale'}</small></div></div>; }
 
-function CommercialDashboard({activeClients, credits, inProgress, openRequests}: {activeClients: number; credits: number; inProgress: number; openRequests: number}) {
-  return <><PageHeader eyebrow="WowStampa · Programma WOWPRO" title="Panoramica" /><main className="page-content"><section className="metric-grid"><Metric icon={<UsersRound />} label="Clienti attivi" note="gestione operativa" value={String(activeClients)} /><Metric icon={<MessageSquareText />} label="Richieste aperte" note={inProgress + ' in lavorazione'} tone="amber" value={String(openRequests)} /><Metric icon={<BadgeEuro />} label="Crediti caricati" note="nel mese corrente" tone="violet" value={formatNumber(credits)} /><Metric icon={<ArrowUpRight />} label="Gestione team" note="accesso riservato all’amministrazione" tone="blue" value="—" /></section></main></>;
+function CommercialDashboard({clients, profile, requests}: {clients: Array<{fields: AirtableWowproClient}>; profile: {email: string; full_name: string | null}; requests: DataRow[]}) {
+  const managerName = profile.full_name?.trim().toLocaleLowerCase('it-IT') || '';
+  const managedClients = clients.filter(({fields}) => !fields.archiviato && Boolean(managerName) && fields.account_manager_nome?.trim().toLocaleLowerCase('it-IT') === managerName);
+  const managedNames = new Set(managedClients.map(({fields}) => (fields.ragione_sociale || fields.cliente_id || '').trim().toLocaleLowerCase('it-IT')).filter(Boolean));
+  const managedRequests = requests.filter((request) => managedNames.has(requestCompanyName(request).toLocaleLowerCase('it-IT')));
+  const openRequests = managedRequests.filter((request) => request.status === 'new' || request.status === 'in_progress');
+  const working = managedRequests.filter((request) => request.status === 'in_progress');
+  const completedRecently = managedRequests.filter((request) => request.status === 'completed' && isRecent(String(request.completed_at || request.created_at)));
+  const overdue = openRequests.find(isOverdue);
+  const firstName = (profile.full_name || profile.email).split(' ')[0];
+
+  return <><PageHeader eyebrow="WowStampa · Team commerciale" title="Dashboard" /><main className="page-content administration-page commercial-dashboard">
+    <section className="admin-welcome"><div><h2>{greeting()}, {firstName} <span aria-hidden="true">👋</span></h2><p>{openRequests.length ? `Hai ${openRequests.length} lavorazioni da tenere d'occhio.` : 'Non ci sono lavorazioni aperte da seguire in questo momento.'}</p><div className="admin-welcome__chips"><span>🎉 {completedRecently.length} richieste completate di recente</span>{overdue ? <Link className="admin-welcome__alert" href="/admin/richieste">⏰ In ritardo: {String(overdue.title)} · {formatDate(String(overdue.due_date))}</Link> : null}</div></div><small>{formatTime(new Date())} · Aggiornato ora</small></section>
+    <section className="metric-grid administration-kpis">
+      <Metric icon={<UsersRound />} label="Clienti assegnati" note="con abbonamento attivo" value={String(managedClients.length)} />
+      <Metric icon={<ListTodo />} label="Lavorazioni da seguire" note={working.length + ' in lavorazione'} tone="amber" value={String(openRequests.length)} />
+      <Metric icon={<Clock3 />} label="In attesa di avvio" note="richieste nuove" tone="violet" value={String(openRequests.filter((request) => request.status === 'new').length)} />
+      <Metric icon={<CircleCheck />} label="Completate di recente" note="negli ultimi 7 giorni" tone="blue" value={String(completedRecently.length)} />
+    </section>
+    <section className="commercial-work-section"><div className="administration-title"><div><h2>Lavorazioni da tenere d&apos;occhio</h2><p>Le richieste aperte dei tuoi clienti, ordinate dalla piu recente</p></div><Link className="button button--secondary button--small" href="/admin/richieste">Tutte le richieste</Link></div><div className="commercial-work-list">{openRequests.slice(0, 5).map((request) => <CommercialWorkRow key={String(request.id)} request={request} />)}{!openRequests.length ? <div className="commercial-work-empty"><Check size={20} /><div><strong>Tutto sotto controllo</strong><p>Non ci sono lavorazioni aperte per i clienti a te assegnati.</p></div></div> : null}</div></section>
+  </main></>;
+}
+
+function CommercialWorkRow({request}: {request: DataRow}) {
+  const working = request.status === 'in_progress';
+  return <Link className="commercial-work-row" href="/admin/richieste"><div><div className="commercial-work-row__meta"><span>{String(request.public_id)}</span><b className={working ? 'commercial-work-status commercial-work-status--working' : 'commercial-work-status'}>{working ? 'In lavorazione' : 'Nuova'}</b><em>{requestTypeLabel(String(request.type))} · {formatNumber(Number(request.credit_cost || 0))} crediti</em></div><h3>{String(request.title)}</h3><p>{requestCompanyName(request)} · {formatDate(String(request.created_at))}</p></div><span className="commercial-work-row__action">Apri richiesta</span></Link>;
 }
 
 function Metric({icon, label, note, tone = 'green', value}: {icon: React.ReactNode; label: string; note: string; tone?: string; value: string}) { return <article className="metric-card"><span className={'metric-icon metric-icon--' + tone}>{icon}</span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
@@ -91,3 +115,6 @@ function formatTime(value: Date) { return new Intl.DateTimeFormat('it-IT', {hour
 function formatNumber(value: number) { return new Intl.NumberFormat('it-IT').format(value); }
 function formatCurrency(value: number) { return new Intl.NumberFormat('it-IT', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0}).format(value / 100); }
 function initials(value: string) { return value.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
+function asRecord(value: unknown) { return value && typeof value === 'object' && !Array.isArray(value) ? value as DataRow : {}; }
+function requestCompanyName(request: DataRow) { const relation = request.companies; const company = Array.isArray(relation) ? asRecord(relation[0]) : asRecord(relation); return typeof company.name === 'string' && company.name.trim() ? company.name.trim() : 'Cliente WOWPRO'; }
+function requestTypeLabel(value: string) { return value === 'creation' ? 'Creazione' : value === 'revision' ? 'Revisione' : 'Modifica'; }

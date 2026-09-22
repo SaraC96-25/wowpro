@@ -47,7 +47,7 @@ const graphicLinks: NavigationLink[] = [
 
 function getAdminLinks(notificationCounts: AdminNotificationCounts, isAdministrator: boolean): NavigationLink[] {
   const links: NavigationLink[] = [
-  {href: '/admin', label: 'Panoramica', icon: ChartNoAxesCombined},
+  {href: '/admin', label: isAdministrator ? 'Panoramica' : 'Dashboard', icon: ChartNoAxesCombined},
   {href: '/admin/clienti', label: 'Clienti', icon: UsersRound, section: 'GESTIONE', separated: true, children: [{href: '/admin/archivio-clienti', label: 'Archivio clienti', icon: PackageCheck}]},
   {href: '/admin/richieste', label: 'Richieste', icon: MessageSquareText, count: notificationCounts.requests || undefined},
   {href: '/admin/crediti', label: 'Crediti', icon: BadgeEuro},
