@@ -22,7 +22,7 @@ async function CreditsPage() {
   const supabase = await createClient();
   const [{data: company}, {data: transactions}] = await Promise.all([supabase.from('companies').select('airtable_record_id').eq('id', profile.company_id || '').maybeSingle(), supabase.from('credit_transactions').select('id,bucket,amount,description,created_at').order('created_at', {ascending: false})]);
   let included = 0; let extra = 0; let monthly = 0; let renewal = '';
-  if (company?.airtable_record_id) { try { const record = await getWowproClient(company.airtable_record_id); included = Number(record.fields.crediti_inclusi_residui || 0); extra = Number(record.fields.crediti_extra_residui || 0); monthly = Number(record.fields.crediti_inclusi_mese || 0); renewal = record.fields.data_rinnovo_piano || ''; } catch { /* Balances are temporarily unavailable. */ } }
+  if (company?.airtable_record_id) { try { const record = await getWowproClient(company.airtable_record_id, {fresh: true}); included = Number(record.fields.crediti_inclusi_residui || 0); extra = Number(record.fields.crediti_extra_residui || 0); monthly = Number(record.fields.crediti_inclusi_mese || 0); renewal = record.fields.data_rinnovo_piano || ''; } catch { /* Balances are temporarily unavailable. */ } }
   const ledger = (transactions || []).reduce<{rows: Array<{id: string; bucket: string; amount: number; description: string; created_at: string; balance: number}>; runningBalance: number}>((state, transaction) => ({
     rows: [...state.rows, {...transaction, balance: state.runningBalance}],
     runningBalance: state.runningBalance - transaction.amount,
@@ -41,7 +41,7 @@ async function RequestsPage() {
   const {data: requests} = await supabase.from('graphic_requests').select('id,public_id,title,brief,status,type,credit_cost,created_at').order('created_at', {ascending: false});
   let includedCredits = 0; let extraCredits = 0;
   const {data: company} = await supabase.from('companies').select('airtable_record_id').eq('id', profile.company_id || '').maybeSingle();
-  if (company?.airtable_record_id) { try { const record = await getWowproClient(company.airtable_record_id); includedCredits = Number(record.fields.crediti_inclusi_residui || 0); extraCredits = Number(record.fields.crediti_extra_residui || 0); } catch { /* The request form will show an unavailable balance. */ } }
+  if (company?.airtable_record_id) { try { const record = await getWowproClient(company.airtable_record_id, {fresh: true}); includedCredits = Number(record.fields.crediti_inclusi_residui || 0); extraCredits = Number(record.fields.crediti_extra_residui || 0); } catch { /* The request form will show an unavailable balance. */ } }
   const requestIds = (requests || []).map((request) => request.id);
   const messagesByRequest = new Map<string, Array<{id: string; body: string; created_at: string}>>();
   if (requestIds.length) {

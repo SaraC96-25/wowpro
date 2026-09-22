@@ -2,6 +2,7 @@
 
 import {Check, MessageSquareText, Plus, Upload, X} from 'lucide-react';
 import {ChangeEvent, FormEvent, useState} from 'react';
+import {useRouter} from 'next/navigation';
 
 export type ClientWorkspaceRequest = {
   id: string;
@@ -16,6 +17,7 @@ export type ClientWorkspaceRequest = {
 };
 
 export function ClientRequestsWorkspace({extraCredits, includedCredits, requests}: {extraCredits: number; includedCredits: number; requests: ClientWorkspaceRequest[]}) {
+  const router = useRouter();
   const [items, setItems] = useState(requests);
   const [balances, setBalances] = useState({included: includedCredits, extra: extraCredits});
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function ClientRequestsWorkspace({extraCredits, includedCredits, requests
         {selected ? <RequestDetail request={selected} /> : <div className="client-request-detail__empty"><MessageSquareText size={29} /><p>Seleziona una richiesta dalla lista<br />per vederne i dettagli.</p></div>}
       </aside>
     </div>}
-    {isCreating ? <CreateRequestModal extraCredits={balances.extra} includedCredits={balances.included} onClose={() => setIsCreating(false)} onCreated={(request) => { const usedIncluded = Math.min(balances.included, request.creditCost); setBalances({included: balances.included - usedIncluded, extra: balances.extra - (request.creditCost - usedIncluded)}); setItems((current) => [request, ...current]); setSelectedId(request.id); setIsCreating(false); }} /> : null}
+    {isCreating ? <CreateRequestModal extraCredits={balances.extra} includedCredits={balances.included} onClose={() => setIsCreating(false)} onCreated={(request) => { const usedIncluded = Math.min(balances.included, request.creditCost); setBalances({included: balances.included - usedIncluded, extra: balances.extra - (request.creditCost - usedIncluded)}); setItems((current) => [request, ...current]); setSelectedId(request.id); setIsCreating(false); router.refresh(); }} /> : null}
   </section>;
 }
 

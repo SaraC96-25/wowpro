@@ -58,8 +58,9 @@ async function readWowproClients() {
   return records;
 }
 
-export async function getWowproClient(recordId: string) {
-  return await cachedWowproClient(recordId);
+export async function getWowproClient(recordId: string, options?: {fresh?: boolean}) {
+  // Balances shown immediately after a credit mutation must never use stale data.
+  return options?.fresh ? await readWowproClient(recordId) : await cachedWowproClient(recordId);
 }
 
 async function readWowproClient(recordId: string) {
