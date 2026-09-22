@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   try {
     const admin = createAdminClient();
     const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
-    const {data: invitation, error: invitationError} = await admin.auth.admin.inviteUserByEmail(parsed.data.email.toLowerCase(), {redirectTo: `${origin}/auth/callback`});
+    const {data: invitation, error: invitationError} = await admin.auth.admin.inviteUserByEmail(parsed.data.email.toLowerCase(), {redirectTo: `${origin}/auth/callback?next=/auth/set-password`});
     if (invitationError || !invitation.user) {
       if (invitationError?.message.toLowerCase().includes('already')) return NextResponse.json({error: 'Esiste già un account con questa email. Usa Modifica per aggiornarne il ruolo.'}, {status: 409});
       throw invitationError || new Error('Invito non creato.');
